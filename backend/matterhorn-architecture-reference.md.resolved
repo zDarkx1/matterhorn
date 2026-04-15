@@ -1,0 +1,1797 @@
+# 🏔️ Matterhorn.co — Full-Stack Architecture Reference
+
+> **Dokumen rujukan arsitektur lengkap** untuk platform **jasa sewa alat outdoor/camping** bernama **Matterhorn.co**.
+> Backend: **Laravel 11** | Frontend: **React (Next.js 15 App Router)** | Database: **MySQL/PostgreSQL**
+>
+> Pengambilan barang dilakukan **di toko fisik** (bukan delivery). Alamat user berfungsi sebagai **verifikasi identitas**, bukan untuk pengiriman.
+>
+> Dokumen ini dirancang agar LLM lain bisa membangun platform ini dari nol dengan memahami setiap modul, pattern, dan desain keputusan arsitektur.
+
+---
+
+## 📑 Daftar Isi
+
+1. [Overview Produk](#1-overview-produk)
+2. [Tech Stack](#2-tech-stack)
+3. [Arsitektur Sistem](#3-arsitektur-sistem)
+4. [Struktur Folder — Backend (Laravel)](#4-struktur-folder--backend-laravel)
+5. [Struktur Folder — Frontend (Next.js)](#5-struktur-folder--frontend-nextjs)
+6. [Database Schema & Migrations](#6-database-schema--migrations)
+7. [Authentication & Authorization](#7-authentication--authorization)
+8. [API Design — Endpoints Lengkap](#8-api-design--endpoints-lengkap)
+9. [Backend Modules — Detail Implementation](#9-backend-modules--detail-implementation)
+10. [Frontend Modules — Detail Implementation](#10-frontend-modules--detail-implementation)
+11. [State Management (Frontend)](#11-state-management-frontend)
+12. [Rental Business Logic](#12-rental-business-logic)
+13. [Cart & Checkout System](#13-cart--checkout-system)
+14. [Payment System](#14-payment-system)
+15. [Admin Panel](#15-admin-panel)
+16. [Design System & UI Tokens](#16-design-system--ui-tokens)
+17. [Navigation & Routing](#17-navigation--routing)
+18. [Middleware Stack](#18-middleware-stack)
+19. [Scheduled Tasks & Cron Jobs](#19-scheduled-tasks--cron-jobs)
+20. [Environment & Deployment](#20-environment--deployment)
+21. [Naming Conventions](#21-naming-conventions)
+
+---
+
+## 1. Overview Produk
+
+### Apa itu Matterhorn.co?
+
+**Matterhorn.co** adalah platform web untuk **jasa penyewaan alat outdoor/camping**. User bisa browse katalog produk, pilih tanggal sewa, checkout online, lalu **mengambil dan mengembalikan barang di toko fisik**.
+
+### Model Bisnis
+
+```
+┌────────────────────────────────────────────────┐
+│              ALUR SEWA MATTERHORN              │
+│                                                │
+│  1. User browse katalog alat camping di web    │
+│  2. User pilih produk + tanggal mulai/selesai  │
+│  3. User tambah ke cart                        │
+│  4. User checkout (harus punya alamat/profil)  │
+│  5. User bayar (transfer / payment gateway)    │
+│  6. Admin approve pesanan                      │
+│  7. User AMBIL barang DI TOKO (in-store)       │
+│  8. User KEMBALIKAN barang DI TOKO             │
+│  9. Admin cek kondisi & selesaikan rental      │
+└────────────────────────────────────────────────┘
+```
+
+### Mengapa Alamat Bukan untuk Delivery?
+
+Alamat user berfungsi sebagai **verifikasi identitas & keamanan** — bukan alamat pengiriman. Jika barang tidak dikembalikan, alamat jadi referensi. Checkout **diblokir** jika user belum set alamat.
+
+### Key Features
+
+| Feature | Description |
+|---------|-------------|
+| 🏕️ **Katalog Produk** | Browse alat camping dengan foto, deskripsi, harga/hari |
+| 📅 **Rental Calendar** | Pilih tanggal mulai & selesai sewa |
+| 🛒 **Cart System** | Persistent cart, multi-item |
+| ✅ **Checkout** | Validasi alamat, validasi jam buka toko |
+| 💰 **Payment** | Transfer bank / payment gateway |
+| 👤 **User Profile** | Nama, alamat, riwayat sewa |
+| 🔧 **Admin Panel** | Kelola produk, pesanan, stok, user |
+| 📊 **Dashboard Admin** | Analytics: pendapatan, produk populer, stock level |
+
+---
+
+## 2. Tech Stack
+
+### Definitive Stack
+
+| Layer | Technology | Version | Purpose |
+|-------|-----------|---------|---------|
+| **Frontend** | Next.js (App Router) | 15.x | SSR, routing, React framework |
+| **Frontend Language** | TypeScript | 5.x | Type safety |
+| **CSS** | Tailwind CSS | 3.x / 4.x | Utility-first styling |
+| **State Management** | Zustand | latest | Client-side state (cart, auth) |
+| **Backend** | Laravel | 11.x | REST API, business logic |
+| **Backend Language** | PHP | 8.2+ | Server language |
+| **Authentication** | Laravel Sanctum | built-in | Token-based API auth |
+| **Database** | MySQL | 8.x | Primary data store |
+| **Validation** | Laravel Form Requests | built-in | Server-side validation |
+| **File Storage** | Laravel Storage (local/S3) | built-in | Product images |
+| **Admin** | Custom (API-driven) | — | Admin panel via React |
+| **Deployment** | Vercel (frontend) + Forge/VPS (backend) | — | Hosting |
+
+### Why This Stack?
+
+- **Laravel**: Ecosystem matang (Eloquent, migrations, scheduling, Sanctum auth, form requests)
+- **Next.js App Router**: SEO-friendly SSR, route groups, layouts, server components
+- **Sanctum**: Simple token auth untuk SPA, tanpa kompleksitas OAuth/Passport
+- **MySQL**: Relational data (products, orders, users) — natural fit untuk rental system
+- **Zustand**: Lightweight, persistent cart state tanpa Redux boilerplate
+
+---
+
+## 3. Arsitektur Sistem
+
+### Architecture Diagram
+
+```
+┌─────────────────────┐         HTTPS/JSON        ┌─────────────────────────┐
+│   Next.js 15 PWA    │ ◄──────────────────────►   │    Laravel 11 API       │
+│   (Frontend)        │                            │    Port 8000            │
+│                     │   Authorization:           │                         │
+│   Vercel / Static   │   Bearer <sanctum_token>   │    Forge / VPS          │
+│                     │                            │                         │
+│   ├─ app/           │                            │    ├─ Controllers/Api/  │
+│   ├─ components/    │                            │    ├─ Services/         │
+│   ├─ stores/        │                            │    ├─ Models/           │
+│   ├─ services/      │                            │    ├─ Requests/         │
+│   └─ types/         │                            │    └─ Middleware/       │
+└─────────────────────┘                            └────────────┬────────────┘
+                                                                │
+                                                         Eloquent ORM
+                                                                │
+                                                   ┌────────────┴────────────┐
+                                                   ▼                         ▼
+                                          ┌──────────────┐          ┌──────────────┐
+                                          │    MySQL      │          │   Storage    │
+                                          │  (All Data)   │          │ (Images/S3)  │
+                                          └──────────────┘          └──────────────┘
+                                                                         │
+                                                   ┌─────────────────────┘
+                                                   ▼
+                                          ┌──────────────┐
+                                          │  Laravel      │
+                                          │  Scheduler    │
+                                          │  (Cron Jobs)  │
+                                          └──────────────┘
+```
+
+### Arsitektur Prinsip
+
+| Principle | Implementation |
+|-----------|---------------|
+| **API-First** | Laravel HANYA serve JSON API (tidak render Blade views) |
+| **Stateless** | Setiap request membawa Sanctum token sendiri |
+| **Layered** | Routes → Controllers → Services → Models → Database |
+| **Consistent Response** | Semua API return `{ success, data?, error?, message? }` |
+| **Auth di Frontend** | Login/register UI ada di Next.js, backend hanya validasi |
+| **Separation of Concerns** | Frontend = presentasi, Backend = business logic + data |
+
+---
+
+## 4. Struktur Folder — Backend (Laravel)
+
+```
+matterhorn-api/
+├── app/
+│   ├── Http/
+│   │   ├── Controllers/
+│   │   │   ├── Api/                          ← ALL API Controllers
+│   │   │   │   ├── AuthController.php        ← register, login, logout, me
+│   │   │   │   ├── ProductController.php     ← CRUD produk (public: index,show)
+│   │   │   │   ├── CategoryController.php    ← CRUD kategori produk
+│   │   │   │   ├── CartController.php        ← get cart, add, update qty, remove
+│   │   │   │   ├── RentalController.php      ← checkout, my rentals, cancel
+│   │   │   │   ├── PaymentController.php     ← upload bukti, callback gateway
+│   │   │   │   ├── UserController.php        ← profile, update profile, address
+│   │   │   │   ├── ReviewController.php      ← buat & lihat review produk
+│   │   │   │   └── StoreInfoController.php   ← jam buka, lokasi, kontak toko
+│   │   │   │
+│   │   │   └── Admin/                        ← Admin-Only Controllers
+│   │   │       ├── AdminProductController.php    ← full CRUD + stok
+│   │   │       ├── AdminCategoryController.php   ← full CRUD kategori
+│   │   │       ├── AdminRentalController.php     ← approve, reject, complete
+│   │   │       ├── AdminPaymentController.php    ← confirm payment
+│   │   │       ├── AdminUserController.php       ← manage users
+│   │   │       └── AdminDashboardController.php  ← analytics & stats
+│   │   │
+│   │   ├── Middleware/
+│   │   │   ├── EnsureIsAdmin.php             ← Check user.role === 'admin'
+│   │   │   ├── EnsureStoreIsOpen.php         ← Block actions outside store hours
+│   │   │   └── EnsureHasAddress.php          ← Block checkout if no address
+│   │   │
+│   │   └── Requests/                         ← Form Request Validation
+│   │       ├── Auth/
+│   │       │   ├── RegisterRequest.php
+│   │       │   └── LoginRequest.php
+│   │       ├── Product/
+│   │       │   ├── StoreProductRequest.php
+│   │       │   └── UpdateProductRequest.php
+│   │       ├── Cart/
+│   │       │   ├── AddToCartRequest.php
+│   │       │   └── UpdateCartRequest.php
+│   │       ├── Rental/
+│   │       │   ├── CheckoutRequest.php
+│   │       │   └── CancelRentalRequest.php
+│   │       ├── Payment/
+│   │       │   └── UploadPaymentProofRequest.php
+│   │       └── User/
+│   │           ├── UpdateProfileRequest.php
+│   │           └── UpdateAddressRequest.php
+│   │
+│   ├── Models/                               ← Eloquent Models
+│   │   ├── User.php                          ← name, email, phone, role, address fields
+│   │   ├── Product.php                       ← name, slug, description, price_per_day, stock, images
+│   │   ├── Category.php                      ← name, slug, icon
+│   │   ├── Cart.php                          ← user_id (1 cart per user)
+│   │   ├── CartItem.php                      ← cart_id, product_id, qty, rental_start, rental_end
+│   │   ├── Rental.php                        ← user_id, status, total, dates, address snapshot
+│   │   ├── RentalItem.php                    ← rental_id, product_id, qty, price_per_day, subtotal
+│   │   ├── Payment.php                       ← rental_id, method, amount, status, proof_url
+│   │   ├── Review.php                        ← user_id, product_id, rental_id, rating, comment
+│   │   ├── StoreConfig.php                   ← store hours, address, phone, holiday dates
+│   │   └── ActivityLog.php                   ← admin activity tracking (optional)
+│   │
+│   ├── Services/                             ← Business Logic Layer
+│   │   ├── AuthService.php                   ← register, login, token management
+│   │   ├── ProductService.php                ← product queries, availability check
+│   │   ├── CartService.php                   ← cart operations, date validation
+│   │   ├── RentalService.php                 ← checkout flow, status transitions
+│   │   ├── PaymentService.php                ← payment processing, verification
+│   │   ├── StockService.php                  ← stock availability per date range
+│   │   ├── PricingService.php                ← calculate rental cost (days × price × qty)
+│   │   └── StoreService.php                  ← check store hours, holidays
+│   │
+│   ├── Enums/                                ← PHP 8.1 Enums
+│   │   ├── RentalStatus.php                  ← pending, confirmed, picked_up, returned, completed, cancelled
+│   │   ├── PaymentStatus.php                 ← pending, uploaded, confirmed, rejected
+│   │   ├── PaymentMethod.php                 ← bank_transfer, ewallet, cash
+│   │   └── UserRole.php                      ← user, admin
+│   │
+│   ├── Traits/
+│   │   └── ApiResponseTrait.php              ← sendSuccess(), sendError(), sendNotFound()
+│   │
+│   ├── Observers/
+│   │   ├── RentalObserver.php                ← on status change → update stock, notify
+│   │   └── PaymentObserver.php               ← on confirmed → update rental status
+│   │
+│   ├── Notifications/
+│   │   ├── RentalConfirmedNotification.php
+│   │   ├── PaymentConfirmedNotification.php
+│   │   └── RentalReminderNotification.php    ← reminder sebelum tanggal pickup
+│   │
+│   └── Console/
+│       └── Commands/
+│           ├── CheckOverdueRentals.php       ← tandai rental yang telat return
+│           ├── SendPickupReminders.php       ← kirim reminder H-1 pickup
+│           ├── AutoCancelUnpaidRentals.php   ← cancel rental yang belum bayar >24h
+│           └── GenerateDailyReport.php       ← laporan harian untuk admin
+│
+├── database/
+│   ├── migrations/                           ← Urutan migrasi
+│   │   ├── 0001_create_users_table.php
+│   │   ├── 0002_create_categories_table.php
+│   │   ├── 0003_create_products_table.php
+│   │   ├── 0004_create_carts_table.php
+│   │   ├── 0005_create_cart_items_table.php
+│   │   ├── 0006_create_rentals_table.php
+│   │   ├── 0007_create_rental_items_table.php
+│   │   ├── 0008_create_payments_table.php
+│   │   ├── 0009_create_reviews_table.php
+│   │   ├── 0010_create_store_configs_table.php
+│   │   └── 0011_create_activity_logs_table.php
+│   │
+│   ├── seeders/
+│   │   ├── DatabaseSeeder.php
+│   │   ├── CategorySeeder.php                ← Tenda, Sleeping Bag, Carrier, Cooking, dll
+│   │   ├── ProductSeeder.php                 ← Dummy products
+│   │   ├── StoreConfigSeeder.php             ← Default store hours
+│   │   └── AdminSeeder.php                   ← Default admin account
+│   │
+│   └── factories/
+│       ├── UserFactory.php
+│       ├── ProductFactory.php
+│       └── RentalFactory.php
+│
+├── routes/
+│   └── api.php                               ← SEMUA API routes di sini
+│
+├── config/
+│   ├── sanctum.php                           ← Sanctum config
+│   ├── cors.php                              ← CORS for Next.js frontend
+│   └── store.php                             ← Custom: store hours, pickup rules
+│
+├── storage/app/public/
+│   ├── products/                             ← Product images
+│   └── payments/                             ← Payment proof uploads
+│
+├── .env
+├── composer.json
+└── artisan
+```
+
+### Layered Architecture Detail
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  ROUTES (routes/api.php)                                  │
+│  Defines URL + HTTP method + middleware + controller      │
+│  Route::post('/rentals/checkout', [RentalController,      │
+│              'checkout'])->middleware('auth:sanctum');     │
+└───────────────────────┬──────────────────────────────────┘
+                        │
+┌───────────────────────▼──────────────────────────────────┐
+│  FORM REQUEST (Requests/Rental/CheckoutRequest.php)       │
+│  Validates request body BEFORE reaching controller        │
+│  rules(): ['rental_start' => 'required|date|after:today'] │
+│  authorize(): return auth()->check()                      │
+└───────────────────────┬──────────────────────────────────┘
+                        │
+┌───────────────────────▼──────────────────────────────────┐
+│  CONTROLLER (Controllers/Api/RentalController.php)        │
+│  1. Receives validated request                            │
+│  2. Calls service method                                  │
+│  3. Returns JSON response (via ApiResponseTrait)          │
+│  Does NOT contain business logic!                         │
+└───────────────────────┬──────────────────────────────────┘
+                        │
+┌───────────────────────▼──────────────────────────────────┐
+│  SERVICE (Services/RentalService.php)                     │
+│  ALL business logic lives here:                           │
+│  1. Check stock availability for date range               │
+│  2. Calculate total price                                 │
+│  3. Create rental + rental_items records                   │
+│  4. Deduct stock temporarily                              │
+│  5. Clear user's cart                                     │
+│  6. Send notification                                     │
+└───────────────────────┬──────────────────────────────────┘
+                        │
+┌───────────────────────▼──────────────────────────────────┐
+│  MODEL (Models/Rental.php via Eloquent)                    │
+│  Defines relationships, scopes, casts, accessors           │
+│  belongsTo(User), hasMany(RentalItem), hasOne(Payment)    │
+└───────────────────────┬──────────────────────────────────┘
+                        │
+┌───────────────────────▼──────────────────────────────────┐
+│  DATABASE (MySQL)                                         │
+└──────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 5. Struktur Folder — Frontend (Next.js)
+
+```
+matterhorn-web/
+├── public/
+│   ├── images/                     ← Static images (logo, hero, icons)
+│   │   ├── logo.png
+│   │   ├── hero-banner.jpg
+│   │   └── categories/            ← Category icons/illustrations
+│   ├── fonts/                      ← Custom fonts (jika ada)
+│   └── manifest.json               ← PWA manifest (optional)
+│
+├── src/
+│   ├── app/                        ← Next.js App Router
+│   │   ├── globals.css             ← Global styles + Tailwind base
+│   │   ├── layout.tsx              ← Root layout (fonts, metadata, providers)
+│   │   ├── page.tsx                ← Landing / Homepage
+│   │   ├── not-found.tsx           ← 404 page
+│   │   │
+│   │   ├── (auth)/                 ← Route group: auth pages (NO navbar/footer)
+│   │   │   ├── login/page.tsx
+│   │   │   ├── register/page.tsx
+│   │   │   └── layout.tsx          ← Minimal auth layout
+│   │   │
+│   │   ├── (main)/                 ← Route group: public + authenticated pages
+│   │   │   ├── layout.tsx          ← With Navbar + Footer
+│   │   │   ├── products/
+│   │   │   │   ├── page.tsx        ← Product catalog (grid + filters)
+│   │   │   │   └── [slug]/
+│   │   │   │       └── page.tsx    ← Product detail + add to cart
+│   │   │   ├── categories/
+│   │   │   │   └── [slug]/
+│   │   │   │       └── page.tsx    ← Products filtered by category
+│   │   │   ├── cart/
+│   │   │   │   └── page.tsx        ← Shopping cart (dates, qty, subtotals)
+│   │   │   ├── checkout/
+│   │   │   │   └── page.tsx        ← Checkout (address verify, summary, pay)
+│   │   │   ├── rentals/
+│   │   │   │   ├── page.tsx        ← My rental history
+│   │   │   │   └── [id]/
+│   │   │   │       └── page.tsx    ← Rental detail (status, items, payment)
+│   │   │   ├── profile/
+│   │   │   │   └── page.tsx        ← User profile + address management
+│   │   │   └── about/
+│   │   │       └── page.tsx        ← About us, store location, hours
+│   │   │
+│   │   └── admin/                  ← Admin Panel (separate layout)
+│   │       ├── layout.tsx          ← Admin layout (sidebar + topbar)
+│   │       ├── page.tsx            ← Dashboard (analytics, stats)
+│   │       ├── products/
+│   │       │   ├── page.tsx        ← Product list (CRUD table)
+│   │       │   ├── create/page.tsx ← Add product form
+│   │       │   └── [id]/edit/page.tsx ← Edit product form
+│   │       ├── categories/
+│   │       │   └── page.tsx        ← Category management
+│   │       ├── rentals/
+│   │       │   ├── page.tsx        ← All rentals (filter by status)
+│   │       │   └── [id]/page.tsx   ← Rental detail (approve, reject, complete)
+│   │       ├── payments/
+│   │       │   └── page.tsx        ← Payment verification list
+│   │       ├── users/
+│   │       │   └── page.tsx        ← User management
+│   │       └── settings/
+│   │           └── page.tsx        ← Store settings (hours, holidays)
+│   │
+│   ├── components/                 ← Reusable UI components
+│   │   ├── ui/                     ← Primitive/base components
+│   │   │   ├── Button.tsx
+│   │   │   ├── Card.tsx
+│   │   │   ├── Input.tsx
+│   │   │   ├── Select.tsx
+│   │   │   ├── Modal.tsx
+│   │   │   ├── Badge.tsx           ← Status badge (pending, confirmed, etc)
+│   │   │   ├── Skeleton.tsx
+│   │   │   ├── Avatar.tsx
+│   │   │   ├── DatePicker.tsx      ← Rental date range picker
+│   │   │   ├── ImageGallery.tsx    ← Product image carousel
+│   │   │   ├── QuantitySelector.tsx ← +/- quantity input
+│   │   │   ├── PriceTag.tsx        ← Formatted price display (Rp xxx.xxx)
+│   │   │   ├── EmptyState.tsx      ← "Keranjang kosong" etc
+│   │   │   └── Toast.tsx           ← Notification toast
+│   │   │
+│   │   ├── layout/                 ← App shell components
+│   │   │   ├── Navbar.tsx          ← Top navigation (logo, nav links, cart icon, user menu)
+│   │   │   ├── Footer.tsx          ← Site footer
+│   │   │   ├── AdminSidebar.tsx    ← Admin panel sidebar navigation
+│   │   │   ├── AdminTopbar.tsx     ← Admin panel topbar
+│   │   │   └── MobileMenu.tsx      ← Hamburger menu for mobile
+│   │   │
+│   │   ├── products/               ← Product-specific components
+│   │   │   ├── ProductCard.tsx     ← Card in catalog grid
+│   │   │   ├── ProductGrid.tsx     ← Grid layout with pagination
+│   │   │   ├── ProductFilters.tsx  ← Category, price range, availability
+│   │   │   ├── ProductDetail.tsx   ← Full product info + booking form
+│   │   │   ├── AvailabilityCalendar.tsx ← Shows available dates
+│   │   │   └── ReviewList.tsx      ← Product reviews
+│   │   │
+│   │   ├── cart/                   ← Cart components
+│   │   │   ├── CartItemRow.tsx     ← Single item in cart (product, dates, qty, subtotal)
+│   │   │   ├── CartSummary.tsx     ← Total, duration, proceed button
+│   │   │   └── CartIcon.tsx        ← Navbar cart icon with badge count
+│   │   │
+│   │   ├── checkout/               ← Checkout flow components
+│   │   │   ├── AddressSection.tsx  ← Display/edit address (security verification)
+│   │   │   ├── OrderSummary.tsx    ← Items + total review
+│   │   │   ├── PaymentMethodSelector.tsx ← Bank transfer / e-wallet / cash
+│   │   │   └── StoreHoursNotice.tsx ← "Toko buka jam 08:00 - 20:00"
+│   │   │
+│   │   ├── rentals/                ← Rental history components
+│   │   │   ├── RentalCard.tsx      ← Rental summary card
+│   │   │   ├── RentalStatusBadge.tsx ← Colored status indicator
+│   │   │   ├── RentalTimeline.tsx  ← Status progression timeline
+│   │   │   └── PaymentUpload.tsx   ← Upload bukti bayar
+│   │   │
+│   │   ├── profile/                ← Profile components
+│   │   │   ├── ProfileForm.tsx     ← Edit name, phone
+│   │   │   └── AddressForm.tsx     ← Full address form (street, city, postal)
+│   │   │
+│   │   └── admin/                  ← Admin-specific components
+│   │       ├── StatsCard.tsx       ← Dashboard metric card
+│   │       ├── RevenueChart.tsx    ← Revenue chart
+│   │       ├── DataTable.tsx       ← Reusable data table with sorting/pagination
+│   │       ├── ProductForm.tsx     ← Create/edit product form
+│   │       ├── RentalActionPanel.tsx ← Approve/reject/complete buttons
+│   │       └── ImageUpload.tsx     ← Drag-drop image upload
+│   │
+│   ├── hooks/                      ← Custom React hooks
+│   │   ├── useAuth.ts              ← Login, logout, register, auth state
+│   │   ├── useCart.ts              ← Add, remove, update cart items
+│   │   ├── useProducts.ts         ← Fetch products with filters
+│   │   ├── useRentals.ts          ← Fetch user rentals
+│   │   └── useStoreInfo.ts        ← Fetch store hours, check if open
+│   │
+│   ├── services/                   ← API service layer (talks to Laravel)
+│   │   ├── api.ts                  ← Central fetch wrapper (auto-attach Sanctum token)
+│   │   ├── auth.service.ts         ← POST /auth/register, /auth/login, /auth/me
+│   │   ├── product.service.ts      ← GET /products, /products/:slug
+│   │   ├── category.service.ts     ← GET /categories
+│   │   ├── cart.service.ts         ← GET/POST/PUT/DELETE /cart
+│   │   ├── rental.service.ts       ← POST /rentals/checkout, GET /rentals
+│   │   ├── payment.service.ts      ← POST /payments/upload-proof
+│   │   ├── user.service.ts         ← GET/PUT /users/profile
+│   │   ├── review.service.ts       ← GET/POST /reviews
+│   │   ├── store.service.ts        ← GET /store/info, /store/hours
+│   │   └── admin.service.ts        ← All admin API calls
+│   │
+│   ├── stores/                     ← Zustand state stores
+│   │   ├── useAuthStore.ts         ← { user, token, login(), logout(), isAdmin }
+│   │   ├── useCartStore.ts         ← { items, addItem(), removeItem(), total }
+│   │   └── useUIStore.ts           ← { isMobileMenuOpen, activeModal, toast }
+│   │
+│   ├── types/                      ← TypeScript type definitions
+│   │   ├── user.types.ts           ← User, Address, UserRole
+│   │   ├── product.types.ts        ← Product, ProductImage, CategoryProductCount
+│   │   ├── category.types.ts       ← Category
+│   │   ├── cart.types.ts           ← Cart, CartItem
+│   │   ├── rental.types.ts         ← Rental, RentalItem, RentalStatus
+│   │   ├── payment.types.ts        ← Payment, PaymentStatus, PaymentMethod
+│   │   ├── review.types.ts         ← Review
+│   │   ├── store.types.ts          ← StoreConfig, StoreHours
+│   │   └── api.types.ts            ← ApiResponse<T>, PaginatedResponse<T>
+│   │
+│   ├── utils/                      ← Pure utility functions
+│   │   ├── format.ts               ← formatCurrency(50000) → "Rp 50.000"
+│   │   ├── date.ts                 ← formatDate(), calculateDays(), isStoreOpen()
+│   │   ├── cn.ts                   ← clsx + twMerge className helper
+│   │   └── validation.ts           ← Client-side validation helpers
+│   │
+│   ├── constants/                  ← App-wide constants
+│   │   ├── rentalStatuses.ts       ← Status labels, colors, icons
+│   │   ├── paymentMethods.ts       ← Payment method options
+│   │   └── storeDefaults.ts        ← Default store hours, etc
+│   │
+│   └── lib/                        ← Library configs
+│       └── api.ts                  ← Axios/fetch instance with base URL + interceptors
+│
+├── .env.local                      ← NEXT_PUBLIC_API_URL=http://localhost:8000/api
+├── next.config.ts
+├── tailwind.config.ts
+├── tsconfig.json
+└── package.json
+```
+
+---
+
+## 6. Database Schema & Migrations
+
+### 6.1 Entity Relationship Diagram
+
+```
+┌──────────┐       ┌──────────┐       ┌──────────────┐
+│  users   │───1:N─│  rentals │───1:N─│ rental_items │
+│          │       │          │       │              │
+│ id       │       │ id       │       │ rental_id    │
+│ name     │       │ user_id  │       │ product_id   │
+│ email    │       │ status   │       │ quantity     │
+│ password │       │ total    │       │ price_per_day│
+│ phone    │       │ start    │       │ subtotal     │
+│ role     │       │ end      │       └──────┬───────┘
+│ address* │       │ address  │              │
+└────┬─────┘       │ snapshot │       ┌──────▼───────┐
+     │             └────┬─────┘       │  products    │
+     │                  │             │              │
+     │             ┌────▼─────┐       │ id           │
+     │             │ payments │       │ category_id  │
+     │             │          │       │ name         │
+     │             │ rental_id│       │ slug         │
+     │             │ method   │       │ description  │
+     │             │ amount   │       │ price_per_day│
+     │             │ status   │       │ stock        │
+     │             │ proof_url│       │ images[]     │
+     │             └──────────┘       └──────┬───────┘
+     │                                       │
+     │  ┌──────────┐                  ┌──────▼───────┐
+     ├──│  carts   │──1:N──┐         │ categories   │
+     │  │          │       │         │              │
+     │  │ user_id  │  ┌────▼─────┐   │ id           │
+     │  └──────────┘  │cart_items│   │ name         │
+     │                │          │   │ slug         │
+     │                │ cart_id  │   │ icon         │
+     │                │product_id│   └──────────────┘
+     │                │ quantity │
+     │                │ start   │
+     │                │ end     │
+     │                └─────────┘
+     │
+     │  ┌──────────┐
+     └──│ reviews  │
+        │          │
+        │ user_id  │
+        │product_id│
+        │rental_id │
+        │ rating   │
+        │ comment  │
+        └──────────┘
+```
+
+### 6.2 Tables Detail
+
+#### `users`
+```php
+Schema::create('users', function (Blueprint $table) {
+    $table->id();
+    $table->string('name');
+    $table->string('email')->unique();
+    $table->string('password');
+    $table->string('phone')->nullable();
+    $table->enum('role', ['user', 'admin'])->default('user');
+    // Address fields (untuk verifikasi identitas, BUKAN delivery)
+    $table->string('address_street')->nullable();
+    $table->string('address_city')->nullable();
+    $table->string('address_province')->nullable();
+    $table->string('address_postal_code')->nullable();
+    $table->text('address_detail')->nullable();        // RT/RW, patokan
+    $table->boolean('address_verified')->default(false);
+    $table->string('avatar_url')->nullable();
+    $table->timestamp('email_verified_at')->nullable();
+    $table->rememberToken();
+    $table->timestamps();
+});
+```
+
+#### `categories`
+```php
+Schema::create('categories', function (Blueprint $table) {
+    $table->id();
+    $table->string('name');                  // "Tenda", "Sleeping Bag", "Carrier"
+    $table->string('slug')->unique();        // "tenda", "sleeping-bag"
+    $table->string('icon')->nullable();      // Icon name or URL
+    $table->text('description')->nullable();
+    $table->integer('sort_order')->default(0);
+    $table->boolean('is_active')->default(true);
+    $table->timestamps();
+});
+```
+
+#### `products`
+```php
+Schema::create('products', function (Blueprint $table) {
+    $table->id();
+    $table->foreignId('category_id')->constrained()->onDelete('cascade');
+    $table->string('name');                          // "Tenda Naturehike Cloud Up 2"
+    $table->string('slug')->unique();
+    $table->text('description');
+    $table->text('specifications')->nullable();      // JSON or text: kapasitas, berat, material
+    $table->integer('price_per_day');                 // Harga sewa per hari (Rupiah)
+    $table->integer('stock');                         // Total unit yang dimiliki toko
+    $table->integer('available_stock');               // Unit tersedia saat ini (stock - yang disewa)
+    $table->json('images')->nullable();               // Array of image URLs
+    $table->string('brand')->nullable();
+    $table->string('condition')->default('good');     // good, fair, new
+    $table->boolean('is_active')->default(true);
+    $table->integer('min_rental_days')->default(1);
+    $table->integer('max_rental_days')->default(30);
+    $table->decimal('deposit_amount', 12, 0)->default(0); // Uang jaminan
+    $table->integer('view_count')->default(0);
+    $table->timestamps();
+    $table->softDeletes();
+});
+```
+
+#### `carts` & `cart_items`
+```php
+// carts — 1 user = 1 cart (persistent)
+Schema::create('carts', function (Blueprint $table) {
+    $table->id();
+    $table->foreignId('user_id')->constrained()->onDelete('cascade');
+    $table->timestamps();
+});
+
+// cart_items — items in a cart with date ranges
+Schema::create('cart_items', function (Blueprint $table) {
+    $table->id();
+    $table->foreignId('cart_id')->constrained()->onDelete('cascade');
+    $table->foreignId('product_id')->constrained()->onDelete('cascade');
+    $table->integer('quantity')->default(1);
+    $table->date('rental_start');              // Tanggal mulai sewa
+    $table->date('rental_end');                // Tanggal selesai sewa
+    $table->timestamps();
+
+    $table->unique(['cart_id', 'product_id']); // 1 product per cart (update qty instead)
+});
+```
+
+#### `rentals` & `rental_items`
+```php
+// rentals — master order
+Schema::create('rentals', function (Blueprint $table) {
+    $table->id();
+    $table->string('rental_code')->unique();     // "MTH-20260414-001"
+    $table->foreignId('user_id')->constrained();
+    $table->enum('status', [
+        'pending_payment',       // Menunggu pembayaran
+        'payment_uploaded',      // Bukti sudah diupload, menunggu verifikasi
+        'confirmed',             // Pembayaran dikonfirmasi admin
+        'picked_up',             // Barang sudah diambil di toko
+        'active',                // Sedang dipinjam (= picked_up + past start date)
+        'returned',              // Barang sudah dikembalikan
+        'completed',             // Admin sudah cek kondisi, selesai
+        'cancelled',             // Dibatalkan
+        'overdue',               // Melewati tanggal return
+    ])->default('pending_payment');
+    $table->date('rental_start');
+    $table->date('rental_end');
+    $table->integer('total_days');
+    $table->decimal('subtotal', 12, 0);          // Total sebelum deposit
+    $table->decimal('deposit_total', 12, 0)->default(0);
+    $table->decimal('grand_total', 12, 0);       // subtotal + deposit
+    // Address snapshot (saat checkout, tidak berubah walaupun user update alamat)
+    $table->string('snapshot_address_street');
+    $table->string('snapshot_address_city');
+    $table->string('snapshot_address_province');
+    $table->string('snapshot_address_postal_code');
+    $table->text('snapshot_address_detail')->nullable();
+    $table->text('notes')->nullable();            // Catatan dari user
+    $table->text('admin_notes')->nullable();      // Catatan dari admin
+    $table->timestamp('paid_at')->nullable();
+    $table->timestamp('picked_up_at')->nullable();
+    $table->timestamp('returned_at')->nullable();
+    $table->timestamp('completed_at')->nullable();
+    $table->timestamp('cancelled_at')->nullable();
+    $table->string('cancelled_reason')->nullable();
+    $table->timestamps();
+});
+
+// rental_items — detail produk per rental
+Schema::create('rental_items', function (Blueprint $table) {
+    $table->id();
+    $table->foreignId('rental_id')->constrained()->onDelete('cascade');
+    $table->foreignId('product_id')->constrained();
+    $table->string('product_name');              // Snapshot nama (jaga konsistensi)
+    $table->integer('quantity');
+    $table->integer('price_per_day');            // Snapshot harga saat checkout
+    $table->integer('total_days');
+    $table->decimal('subtotal', 12, 0);          // qty × price × days
+    $table->decimal('deposit_per_item', 12, 0)->default(0);
+    $table->timestamps();
+});
+```
+
+#### `payments`
+```php
+Schema::create('payments', function (Blueprint $table) {
+    $table->id();
+    $table->foreignId('rental_id')->constrained()->onDelete('cascade');
+    $table->enum('method', ['bank_transfer', 'ewallet', 'cash']);
+    $table->decimal('amount', 12, 0);
+    $table->enum('status', [
+        'pending',         // Belum bayar
+        'uploaded',        // Bukti sudah diupload
+        'confirmed',       // Admin sudah konfirmasi
+        'rejected',        // Admin tolak (bukti tidak valid)
+    ])->default('pending');
+    $table->string('proof_url')->nullable();     // URL bukti transfer
+    $table->string('bank_name')->nullable();     // Nama bank pengirim
+    $table->string('account_name')->nullable();  // Nama pengirim
+    $table->text('admin_note')->nullable();       // Catatan admin (jika reject)
+    $table->timestamp('confirmed_at')->nullable();
+    $table->timestamp('rejected_at')->nullable();
+    $table->timestamps();
+});
+```
+
+#### `reviews`
+```php
+Schema::create('reviews', function (Blueprint $table) {
+    $table->id();
+    $table->foreignId('user_id')->constrained();
+    $table->foreignId('product_id')->constrained();
+    $table->foreignId('rental_id')->constrained();
+    $table->tinyInteger('rating');              // 1-5
+    $table->text('comment')->nullable();
+    $table->timestamps();
+
+    $table->unique(['user_id', 'rental_id', 'product_id']); // 1 review per product per rental
+});
+```
+
+#### `store_configs`
+```php
+Schema::create('store_configs', function (Blueprint $table) {
+    $table->id();
+    $table->string('key')->unique();           // 'operating_hours', 'store_address', 'store_phone'
+    $table->json('value');                     // JSON value
+    $table->timestamps();
+});
+
+// Seeder data:
+// key: 'operating_hours' → value: {"mon":"08:00-20:00","tue":"08:00-20:00",...,"sun":"closed"}
+// key: 'store_address' → value: {"street":"...","city":"...","maps_url":"..."}
+// key: 'store_phone' → value: {"phone":"08xx","whatsapp":"08xx"}
+// key: 'holiday_dates' → value: ["2026-01-01","2026-03-29",...]
+```
+
+---
+
+## 7. Authentication & Authorization
+
+### 7.1 Auth Flow (Sanctum Token-Based)
+
+```
+┌──────────┐   POST /auth/register   ┌───────────┐
+│ Frontend │ ──────────────────────→  │  Laravel   │
+│ Next.js  │   { name, email, pass } │  Sanctum   │
+│          │                          │            │
+│          │ ← { user, token } ────  │ createToken│
+│          │                          │ ('auth')   │
+│          │   Stores token in        └───────────┘
+│          │   localStorage/cookie
+│          │
+│          │   POST /auth/login
+│          │ ──────────────────────→  Same flow
+│          │ ← { user, token } ────
+│          │
+│          │   GET /any-protected-route
+│          │   Authorization: Bearer <token>
+│          │ ──────────────────────→  Sanctum verifies → allow/deny
+└──────────┘
+```
+
+### 7.2 Backend Auth Implementation
+
+```php
+// AuthController.php
+class AuthController extends Controller
+{
+    use ApiResponseTrait;
+
+    public function register(RegisterRequest $request)
+    {
+        $user = User::create([
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => Hash::make($request->password),
+        ]);
+
+        // Create persistent cart for user
+        Cart::create(['user_id' => $user->id]);
+
+        $token = $user->createToken('auth')->plainTextToken;
+
+        return $this->sendSuccess([
+            'user' => new UserResource($user),
+            'token' => $token,
+        ], 201);
+    }
+
+    public function login(LoginRequest $request)
+    {
+        if (!Auth::attempt($request->only('email', 'password'))) {
+            return $this->sendError('Email atau password salah', 401);
+        }
+
+        $user = Auth::user();
+        $token = $user->createToken('auth')->plainTextToken;
+
+        return $this->sendSuccess([
+            'user' => new UserResource($user),
+            'token' => $token,
+        ]);
+    }
+
+    public function me(Request $request)
+    {
+        return $this->sendSuccess([
+            'user' => new UserResource($request->user()),
+        ]);
+    }
+
+    public function logout(Request $request)
+    {
+        $request->user()->currentAccessToken()->delete();
+        return $this->sendSuccess(['message' => 'Berhasil logout']);
+    }
+}
+```
+
+### 7.3 Frontend Auth Store
+
+```typescript
+// stores/useAuthStore.ts
+interface AuthState {
+    user: User | null;
+    token: string | null;
+    isAdmin: boolean;
+    loading: boolean;
+
+    login: (email: string, password: string) => Promise<void>;
+    register: (name: string, email: string, password: string) => Promise<void>;
+    logout: () => Promise<void>;
+    fetchMe: () => Promise<void>;
+    hasAddress: () => boolean;
+}
+
+export const useAuthStore = create<AuthState>()(
+    persist(
+        (set, get) => ({
+            user: null,
+            token: null,
+            isAdmin: false,
+            loading: false,
+
+            login: async (email, password) => {
+                const { user, token } = await authService.login(email, password);
+                set({ user, token, isAdmin: user.role === 'admin' });
+            },
+
+            register: async (name, email, password) => {
+                const { user, token } = await authService.register(name, email, password);
+                set({ user, token, isAdmin: false });
+            },
+
+            logout: async () => {
+                await authService.logout();
+                set({ user: null, token: null, isAdmin: false });
+                useCartStore.getState().clearCart();
+            },
+
+            hasAddress: () => {
+                const user = get().user;
+                return !!(user?.address_street && user?.address_city);
+            },
+        }),
+        { name: 'matterhorn-auth' } // localStorage key
+    )
+);
+```
+
+### 7.4 API Fetch Wrapper (Auto-attach Token)
+
+```typescript
+// lib/api.ts
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+
+export async function apiFetch<T>(
+    endpoint: string,
+    options: RequestInit = {}
+): Promise<T> {
+    const token = useAuthStore.getState().token;
+
+    const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        ...((options.headers as Record<string, string>) || {}),
+    };
+
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(`${API_URL}${endpoint}`, {
+        ...options,
+        headers,
+    });
+
+    // Handle 401 → force logout
+    if (response.status === 401) {
+        useAuthStore.getState().logout();
+        throw new Error('Sesi telah berakhir, silakan login kembali');
+    }
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+        throw new Error(data.error || data.message || 'Terjadi kesalahan');
+    }
+
+    return data.data as T;
+}
+
+// For file uploads (FormData, no Content-Type header)
+export async function apiUpload<T>(
+    endpoint: string,
+    formData: FormData
+): Promise<T> {
+    const token = useAuthStore.getState().token;
+    const headers: Record<string, string> = { Accept: 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const response = await fetch(`${API_URL}${endpoint}`, {
+        method: 'POST',
+        headers,
+        body: formData,
+    });
+
+    const data = await response.json();
+    if (!response.ok || !data.success) throw new Error(data.error || 'Upload gagal');
+    return data.data as T;
+}
+```
+
+### 7.5 Role-Based Authorization
+
+| Role | Access |
+|------|--------|
+| **Guest** | Browse products, categories, store info |
+| **User** | + Cart, checkout, rentals, profile, reviews |
+| **Admin** | + Manage products, categories, rentals, payments, users, settings |
+
+```php
+// routes/api.php
+// Public routes (no auth)
+Route::get('/products', [ProductController::class, 'index']);
+Route::get('/products/{slug}', [ProductController::class, 'show']);
+Route::get('/categories', [CategoryController::class, 'index']);
+Route::get('/store/info', [StoreInfoController::class, 'index']);
+Route::post('/auth/register', [AuthController::class, 'register']);
+Route::post('/auth/login', [AuthController::class, 'login']);
+
+// Authenticated user routes
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/auth/logout', [AuthController::class, 'logout']);
+    Route::get('/auth/me', [AuthController::class, 'me']);
+
+    // Cart
+    Route::get('/cart', [CartController::class, 'index']);
+    Route::post('/cart/items', [CartController::class, 'addItem']);
+    Route::put('/cart/items/{id}', [CartController::class, 'updateItem']);
+    Route::delete('/cart/items/{id}', [CartController::class, 'removeItem']);
+    Route::delete('/cart', [CartController::class, 'clear']);
+
+    // Checkout & Rentals
+    Route::post('/rentals/checkout', [RentalController::class, 'checkout'])
+         ->middleware(['ensure.has.address', 'ensure.store.open']);
+    Route::get('/rentals', [RentalController::class, 'index']);
+    Route::get('/rentals/{id}', [RentalController::class, 'show']);
+    Route::post('/rentals/{id}/cancel', [RentalController::class, 'cancel']);
+
+    // Payment
+    Route::post('/payments/{rentalId}/upload', [PaymentController::class, 'uploadProof']);
+
+    // Profile
+    Route::get('/users/profile', [UserController::class, 'profile']);
+    Route::put('/users/profile', [UserController::class, 'updateProfile']);
+    Route::put('/users/address', [UserController::class, 'updateAddress']);
+
+    // Reviews
+    Route::post('/reviews', [ReviewController::class, 'store']);
+});
+
+// Admin routes
+Route::middleware(['auth:sanctum', 'ensure.is.admin'])->prefix('admin')->group(function () {
+    Route::get('/dashboard', [AdminDashboardController::class, 'index']);
+    Route::apiResource('/products', AdminProductController::class);
+    Route::apiResource('/categories', AdminCategoryController::class);
+    Route::get('/rentals', [AdminRentalController::class, 'index']);
+    Route::put('/rentals/{id}/status', [AdminRentalController::class, 'updateStatus']);
+    Route::put('/payments/{id}/confirm', [AdminPaymentController::class, 'confirm']);
+    Route::put('/payments/{id}/reject', [AdminPaymentController::class, 'reject']);
+    Route::get('/users', [AdminUserController::class, 'index']);
+    Route::put('/settings', [AdminDashboardController::class, 'updateSettings']);
+});
+```
+
+---
+
+## 8. API Design — Endpoints Lengkap
+
+### Standard Response Format
+
+```json
+// Success
+{ "success": true, "data": { ... } }
+
+// Success with message
+{ "success": true, "data": { ... }, "message": "Berhasil ditambahkan" }
+
+// Error
+{ "success": false, "error": "Stok tidak mencukupi" }
+
+// Paginated
+{
+    "success": true,
+    "data": [ ... ],
+    "meta": {
+        "current_page": 1,
+        "last_page": 5,
+        "per_page": 12,
+        "total": 58
+    }
+}
+```
+
+### ApiResponseTrait (Backend)
+
+```php
+trait ApiResponseTrait
+{
+    protected function sendSuccess($data, int $status = 200, string $message = null)
+    {
+        $response = ['success' => true, 'data' => $data];
+        if ($message) $response['message'] = $message;
+        return response()->json($response, $status);
+    }
+
+    protected function sendError(string $message, int $status = 400)
+    {
+        return response()->json(['success' => false, 'error' => $message], $status);
+    }
+
+    protected function sendCreated($data, string $message = null)
+    {
+        return $this->sendSuccess($data, 201, $message);
+    }
+
+    protected function sendNotFound(string $resource = 'Data')
+    {
+        return $this->sendError("$resource tidak ditemukan", 404);
+    }
+
+    protected function sendPaginated($paginator)
+    {
+        return response()->json([
+            'success' => true,
+            'data' => $paginator->items(),
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+            ],
+        ]);
+    }
+}
+```
+
+### Complete Endpoint Reference
+
+#### 🔓 Auth
+| Method | Endpoint | Body | Response |
+|--------|----------|------|----------|
+| `POST` | `/auth/register` | `{ name, email, password, password_confirmation }` | `{ user, token }` |
+| `POST` | `/auth/login` | `{ email, password }` | `{ user, token }` |
+| `POST` | `/auth/logout` | — | `{ message }` |
+| `GET` | `/auth/me` | — | `{ user }` |
+
+#### 📦 Products (Public)
+| Method | Endpoint | Query Params | Response |
+|--------|----------|-------------|----------|
+| `GET` | `/products` | `?category=tenda&search=naturehike&sort=price_asc&page=1` | Paginated products |
+| `GET` | `/products/{slug}` | — | Single product + reviews + availability |
+| `GET` | `/products/{slug}/availability` | `?start=2026-05-01&end=2026-05-03` | `{ available: true, stock: 3 }` |
+
+#### 📂 Categories (Public)
+| Method | Endpoint | Response |
+|--------|----------|----------|
+| `GET` | `/categories` | All categories with product count |
+
+#### 🛒 Cart (Auth Required)
+| Method | Endpoint | Body | Response |
+|--------|----------|------|----------|
+| `GET` | `/cart` | — | Cart with items, subtotals |
+| `POST` | `/cart/items` | `{ product_id, quantity, rental_start, rental_end }` | Updated cart |
+| `PUT` | `/cart/items/{id}` | `{ quantity?, rental_start?, rental_end? }` | Updated item |
+| `DELETE` | `/cart/items/{id}` | — | Updated cart |
+| `DELETE` | `/cart` | — | Empty cart |
+
+#### 📋 Rentals (Auth Required)
+| Method | Endpoint | Body | Response |
+|--------|----------|------|----------|
+| `POST` | `/rentals/checkout` | `{ payment_method, notes? }` | Created rental + payment |
+| `GET` | `/rentals` | `?status=active&page=1` | Paginated user rentals |
+| `GET` | `/rentals/{id}` | — | Rental detail + items + payment |
+| `POST` | `/rentals/{id}/cancel` | `{ reason? }` | Cancelled rental |
+
+#### 💰 Payments (Auth Required)
+| Method | Endpoint | Body (FormData) | Response |
+|--------|----------|------|----------|
+| `POST` | `/payments/{rentalId}/upload` | `proof_image (file), bank_name, account_name` | Payment with proof URL |
+
+#### 👤 User Profile (Auth Required)
+| Method | Endpoint | Body | Response |
+|--------|----------|------|----------|
+| `GET` | `/users/profile` | — | Full user profile |
+| `PUT` | `/users/profile` | `{ name?, phone?, avatar? }` | Updated user |
+| `PUT` | `/users/address` | `{ address_street, address_city, address_province, address_postal_code, address_detail? }` | Updated address |
+
+#### ⭐ Reviews (Auth Required)
+| Method | Endpoint | Body | Response |
+|--------|----------|------|----------|
+| `POST` | `/reviews` | `{ product_id, rental_id, rating, comment? }` | Created review |
+| `GET` | `/products/{slug}/reviews` | — | Product reviews |
+
+#### 🏪 Store Info (Public)
+| Method | Endpoint | Response |
+|--------|----------|----------|
+| `GET` | `/store/info` | Store address, phone, maps URL |
+| `GET` | `/store/hours` | Operating hours per day |
+| `GET` | `/store/is-open` | `{ is_open: true, message: "Buka sampai 20:00" }` |
+
+#### 🔧 Admin Endpoints
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/admin/dashboard` | Stats: revenue, total rentals, popular products |
+| `GET/POST/PUT/DELETE` | `/admin/products` | Full CRUD products |
+| `GET/POST/PUT/DELETE` | `/admin/categories` | Full CRUD categories |
+| `GET` | `/admin/rentals` | All rentals (filter by status) |
+| `PUT` | `/admin/rentals/{id}/status` | Update status (confirm, mark picked up, complete) |
+| `PUT` | `/admin/payments/{id}/confirm` | Confirm payment |
+| `PUT` | `/admin/payments/{id}/reject` | Reject payment + reason |
+| `GET` | `/admin/users` | User list |
+| `PUT` | `/admin/settings` | Update store hours, holidays |
+
+---
+
+## 9. Backend Modules — Detail Implementation
+
+### 9.1 StockService (Critical Module)
+
+```php
+class StockService
+{
+    /**
+     * Cek ketersediaan stok untuk date range tertentu.
+     * Hitung berapa unit yang sedang disewa dalam overlap period.
+     */
+    public function getAvailableStock(int $productId, string $startDate, string $endDate): int
+    {
+        $product = Product::findOrFail($productId);
+
+        // Hitung total unit yang sedang disewa (status: confirmed, picked_up, active)
+        // dengan tanggal yang overlap dengan request
+        $rentedQty = RentalItem::whereHas('rental', function ($q) use ($startDate, $endDate) {
+            $q->whereIn('status', ['confirmed', 'picked_up', 'active', 'pending_payment', 'payment_uploaded'])
+              ->where('rental_start', '<=', $endDate)
+              ->where('rental_end', '>=', $startDate);
+        })
+        ->where('product_id', $productId)
+        ->sum('quantity');
+
+        return max(0, $product->stock - $rentedQty);
+    }
+
+    /**
+     * Cek apakah quantity yang diminta tersedia
+     */
+    public function isAvailable(int $productId, int $qty, string $start, string $end): bool
+    {
+        return $this->getAvailableStock($productId, $start, $end) >= $qty;
+    }
+}
+```
+
+### 9.2 PricingService
+
+```php
+class PricingService
+{
+    public function calculateItemSubtotal(int $pricePerDay, int $quantity, int $totalDays): int
+    {
+        return $pricePerDay * $quantity * $totalDays;
+    }
+
+    public function calculateDays(string $startDate, string $endDate): int
+    {
+        return Carbon::parse($startDate)->diffInDays(Carbon::parse($endDate)) + 1;
+        // +1 karena hari mulai = hari pertama sewa
+    }
+
+    public function calculateCartTotal(Cart $cart): array
+    {
+        $subtotal = 0;
+        $depositTotal = 0;
+
+        foreach ($cart->items as $item) {
+            $days = $this->calculateDays($item->rental_start, $item->rental_end);
+            $subtotal += $this->calculateItemSubtotal(
+                $item->product->price_per_day,
+                $item->quantity,
+                $days
+            );
+            $depositTotal += $item->product->deposit_amount * $item->quantity;
+        }
+
+        return [
+            'subtotal' => $subtotal,
+            'deposit_total' => $depositTotal,
+            'grand_total' => $subtotal + $depositTotal,
+        ];
+    }
+}
+```
+
+### 9.3 RentalService (Checkout Flow)
+
+```php
+class RentalService
+{
+    public function __construct(
+        private StockService $stockService,
+        private PricingService $pricingService,
+    ) {}
+
+    public function checkout(User $user, string $paymentMethod, ?string $notes): Rental
+    {
+        $cart = $user->cart()->with('items.product')->firstOrFail();
+
+        if ($cart->items->isEmpty()) {
+            throw new \Exception('Keranjang kosong');
+        }
+
+        // 1. Validate stock for ALL items
+        foreach ($cart->items as $item) {
+            if (!$this->stockService->isAvailable(
+                $item->product_id, $item->quantity,
+                $item->rental_start, $item->rental_end
+            )) {
+                throw new \Exception("Stok {$item->product->name} tidak mencukupi untuk tanggal tersebut");
+            }
+        }
+
+        // 2. Calculate pricing
+        $pricing = $this->pricingService->calculateCartTotal($cart);
+
+        // 3. Determine overall date range
+        $rentalStart = $cart->items->min('rental_start');
+        $rentalEnd = $cart->items->max('rental_end');
+        $totalDays = $this->pricingService->calculateDays($rentalStart, $rentalEnd);
+
+        return DB::transaction(function () use ($user, $cart, $pricing, $rentalStart, $rentalEnd, $totalDays, $paymentMethod, $notes) {
+            // 4. Create rental with address snapshot
+            $rental = Rental::create([
+                'rental_code' => $this->generateCode(),
+                'user_id' => $user->id,
+                'status' => 'pending_payment',
+                'rental_start' => $rentalStart,
+                'rental_end' => $rentalEnd,
+                'total_days' => $totalDays,
+                'subtotal' => $pricing['subtotal'],
+                'deposit_total' => $pricing['deposit_total'],
+                'grand_total' => $pricing['grand_total'],
+                'snapshot_address_street' => $user->address_street,
+                'snapshot_address_city' => $user->address_city,
+                'snapshot_address_province' => $user->address_province,
+                'snapshot_address_postal_code' => $user->address_postal_code,
+                'snapshot_address_detail' => $user->address_detail,
+                'notes' => $notes,
+            ]);
+
+            // 5. Create rental items (snapshot product data)
+            foreach ($cart->items as $item) {
+                $days = $this->pricingService->calculateDays($item->rental_start, $item->rental_end);
+                RentalItem::create([
+                    'rental_id' => $rental->id,
+                    'product_id' => $item->product_id,
+                    'product_name' => $item->product->name,
+                    'quantity' => $item->quantity,
+                    'price_per_day' => $item->product->price_per_day,
+                    'total_days' => $days,
+                    'subtotal' => $item->product->price_per_day * $item->quantity * $days,
+                    'deposit_per_item' => $item->product->deposit_amount,
+                ]);
+            }
+
+            // 6. Create payment record
+            Payment::create([
+                'rental_id' => $rental->id,
+                'method' => $paymentMethod,
+                'amount' => $pricing['grand_total'],
+                'status' => 'pending',
+            ]);
+
+            // 7. Clear cart
+            $cart->items()->delete();
+
+            return $rental->load('items', 'payment');
+        });
+    }
+
+    private function generateCode(): string
+    {
+        return 'MTH-' . now()->format('Ymd') . '-' . str_pad(
+            Rental::whereDate('created_at', today())->count() + 1, 3, '0', STR_PAD_LEFT
+        );
+    }
+}
+```
+
+### 9.4 StoreService
+
+```php
+class StoreService
+{
+    public function isOpen(): bool
+    {
+        $now = now()->setTimezone('Asia/Jakarta');
+        $dayOfWeek = strtolower($now->format('l')); // 'monday', 'tuesday', etc
+
+        // Check holidays
+        $holidays = StoreConfig::where('key', 'holiday_dates')->first();
+        if ($holidays && in_array($now->format('Y-m-d'), json_decode($holidays->value))) {
+            return false;
+        }
+
+        $hours = StoreConfig::where('key', 'operating_hours')->first();
+        if (!$hours) return true;
+
+        $schedule = json_decode($hours->value, true);
+        $todayHours = $schedule[$dayOfWeek] ?? null;
+
+        if (!$todayHours || $todayHours === 'closed') return false;
+
+        [$open, $close] = explode('-', $todayHours);
+        $currentTime = $now->format('H:i');
+
+        return $currentTime >= $open && $currentTime <= $close;
+    }
+}
+```
+
+---
+
+## 10. Frontend Modules — Detail Implementation
+
+### 10.1 Product Catalog Page
+
+```tsx
+// app/(main)/products/page.tsx
+'use client';
+
+export default function ProductsPage() {
+    const [filters, setFilters] = useState({ category: '', search: '', sort: 'newest' });
+    const { data, isLoading, page, setPage } = useProducts(filters);
+
+    return (
+        <div>
+            <ProductFilters filters={filters} onChange={setFilters} />
+            <ProductGrid products={data?.items} isLoading={isLoading} />
+            <Pagination current={page} total={data?.meta.last_page} onChange={setPage} />
+        </div>
+    );
+}
+```
+
+### 10.2 Product Detail + Add to Cart
+
+```tsx
+// app/(main)/products/[slug]/page.tsx
+'use client';
+
+export default function ProductDetailPage({ params }: { params: { slug: string } }) {
+    const product = useProduct(params.slug);  // fetch single product
+    const { addItem } = useCartStore();
+    const [dates, setDates] = useState({ start: '', end: '' });
+    const [qty, setQty] = useState(1);
+
+    const handleAddToCart = async () => {
+        await addItem({
+            product_id: product.id,
+            quantity: qty,
+            rental_start: dates.start,
+            rental_end: dates.end,
+        });
+        toast.success('Ditambahkan ke keranjang!');
+    };
+
+    return (
+        <div>
+            <ImageGallery images={product.images} />
+            <h1>{product.name}</h1>
+            <PriceTag amount={product.price_per_day} suffix="/hari" />
+            <DatePicker value={dates} onChange={setDates} />
+            <QuantitySelector value={qty} onChange={setQty} max={product.available_stock} />
+            <Button onClick={handleAddToCart}>Tambah ke Keranjang</Button>
+        </div>
+    );
+}
+```
+
+### 10.3 Cart Store (Zustand, Persistent)
+
+```typescript
+// stores/useCartStore.ts
+interface CartState {
+    items: CartItem[];
+    loading: boolean;
+
+    fetchCart: () => Promise<void>;
+    addItem: (data: AddToCartPayload) => Promise<void>;
+    updateItem: (id: number, data: Partial<CartItem>) => Promise<void>;
+    removeItem: (id: number) => Promise<void>;
+    clearCart: () => void;
+
+    // Computed
+    totalItems: () => number;
+    subtotal: () => number;
+}
+```
+
+### 10.4 Checkout Flow
+
+```
+┌──────────────────────────────────────────────────┐
+│ CHECKOUT PAGE                                     │
+│                                                   │
+│ ┌─ Step 1: Address Verification ───────────────┐ │
+│ │ Alamat kamu (untuk verifikasi identitas):    │ │
+│ │ Jl. Merdeka No. 123, Jakarta Selatan         │ │
+│ │ [✅ Alamat sudah benar]  [Ubah Alamat]       │ │
+│ └──────────────────────────────────────────────┘ │
+│                                                   │
+│ ┌─ Step 2: Order Summary ──────────────────────┐ │
+│ │ Tenda Naturehike x1   3 hari   Rp 225.000   │ │
+│ │ Sleeping Bag x2       3 hari   Rp 300.000   │ │
+│ │ ─────────────────────────────────────────── │ │
+│ │ Subtotal:                     Rp 525.000     │ │
+│ │ Deposit:                      Rp 200.000     │ │
+│ │ Total:                        Rp 725.000     │ │
+│ └──────────────────────────────────────────────┘ │
+│                                                   │
+│ ┌─ Step 3: Payment Method ─────────────────────┐ │
+│ │ (●) Transfer Bank                             │ │
+│ │ ( ) E-Wallet                                  │ │
+│ │ ( ) Bayar di Toko (Cash)                      │ │
+│ └──────────────────────────────────────────────┘ │
+│                                                   │
+│ ┌─ Store Hours Notice ─────────────────────────┐ │
+│ │ 🏪 Pengambilan & pengembalian di toko:       │ │
+│ │ Senin - Sabtu: 08:00 - 20:00                 │ │
+│ │ Minggu: Tutup                                 │ │
+│ └──────────────────────────────────────────────┘ │
+│                                                   │
+│              [🔒 Buat Pesanan]                    │
+│  (disabled if: no address, store closed, empty)  │
+└──────────────────────────────────────────────────┘
+```
+
+---
+
+## 11. State Management (Frontend)
+
+### Store Architecture
+
+| Store | Data | Persistence |
+|-------|------|-------------|
+| `useAuthStore` | user, token, isAdmin | localStorage (`matterhorn-auth`) |
+| `useCartStore` | cart items, computed totals | Synced with backend API |
+| `useUIStore` | mobile menu state, active modal, toast | Memory only |
+
+---
+
+## 12. Rental Business Logic
+
+### Status Flow Diagram
+
+```
+                    ┌─────────────┐
+                    │   CHECKOUT   │
+                    └──────┬──────┘
+                           │
+                    ┌──────▼──────┐
+          ┌────────│  pending_    │────────┐
+          │        │  payment     │        │
+          │        └──────┬──────┘        │ (auto cancel
+          │               │                │  after 24h)
+          │   Upload      │                │
+          │   Bukti       │                ▼
+          │        ┌──────▼──────┐  ┌─────────────┐
+          │        │  payment_   │  │  cancelled   │
+          │        │  uploaded   │  └─────────────┘
+          │        └──────┬──────┘        ▲
+          │               │                │
+          │   Admin       │                │ Admin reject /
+          │   Confirm     │                │ User cancel
+          │        ┌──────▼──────┐        │
+          │        │  confirmed  │────────┘
+          │        └──────┬──────┘
+          │               │
+          │   User ambil  │
+          │   di toko     │
+          │        ┌──────▼──────┐
+          │        │  picked_up  │
+          │        └──────┬──────┘
+          │               │
+          │   User        │      Telat?
+          │   kembalikan  │  ┌──────────┐
+          │        ┌──────▼──▼───┐      │
+          │        │  returned / │      │
+          │        │  overdue    │──────┘
+          │        └──────┬──────┘
+          │               │
+          │   Admin cek   │
+          │   kondisi     │
+          │        ┌──────▼──────┐
+          └────────│  completed  │
+                   └─────────────┘
+```
+
+---
+
+## 13. Cart & Checkout System
+
+### Cart Rules
+
+1. **1 user = 1 cart** (dibuat saat register)
+2. **1 product per entry** (jika add lagi, update qty)
+3. Setiap cart item HARUS punya `rental_start` dan `rental_end`
+4. **Stock check** dilakukan saat add to cart DAN saat checkout
+5. Cart **persist** di database (bukan localStorage) — user bisa login dari device lain
+
+### Checkout Preconditions
+
+| Condition | Error Message | Block? |
+|-----------|--------------|--------|
+| Cart kosong | "Keranjang kosong" | ✅ Block |
+| Belum set alamat | "Lengkapi alamat terlebih dahulu" | ✅ Block |
+| Toko sedang tutup | "Toko sedang tutup. Coba lagi saat jam buka." | ✅ Block |
+| Stok habis | "Stok [product] tidak mencukupi untuk tanggal tersebut" | ✅ Block |
+
+---
+
+## 14. Payment System
+
+### Payment Methods
+
+| Method | Flow |
+|--------|------|
+| **Bank Transfer** | Checkout → Show rekening tujuan → User transfer → Upload bukti → Admin confirm |
+| **E-Wallet** | Checkout → Redirect ke gateway → Callback → Auto-confirm |
+| **Cash** | Checkout → Bayar di toko saat pickup → Admin confirm on-site |
+
+### Payment Proof Upload
+
+```
+POST /payments/{rentalId}/upload
+Content-Type: multipart/form-data
+
+Fields:
+- proof_image: File (jpg/png, max 5MB)
+- bank_name: "BCA"
+- account_name: "John Doe"
+```
+
+---
+
+## 15. Admin Panel
+
+### Dashboard Metrics
+
+| Metric | Query |
+|--------|-------|
+| Total Revenue (bulan ini) | `SUM(payments.amount) WHERE confirmed_at IS NOT NULL AND month = current` |
+| Active Rentals | `COUNT(rentals) WHERE status IN (picked_up, active)` |
+| Pending Payments | `COUNT(payments) WHERE status = uploaded` |
+| Popular Products | `TOP 5 products by rental_items count` |
+| Low Stock Alert | `Products WHERE available_stock < 3` |
+
+---
+
+## 16. Design System & UI Tokens
+
+### Color Palette (Outdoor/Mountain Theme)
+
+| Name | Hex | Usage |
+|------|-----|-------|
+| **Primary Green** | `#2D6A4F` | CTA, brand accent |
+| **Primary Light** | `#40916C` | Hover states |
+| **Primary Dark** | `#1B4332` | Active states |
+| **Accent Orange** | `#E76F51` | Badges, alerts |
+| **Background** | `#FEFAE0` | Warm off-white pages |
+| **Surface** | `#FFFFFF` | Cards, modals |
+| **Text Primary** | `#212529` | Headings, body |
+| **Text Secondary** | `#6C757D` | Subtitles |
+| **Success** | `#2D6A4F` | Confirmed states |
+| **Warning** | `#E9C46A` | Pending states |
+| **Error** | `#E76F51` | Errors, cancelled |
+
+### Typography
+
+| Use | Font | Weight | Size |
+|-----|------|--------|------|
+| Headings | Inter / Outfit | 700 | 24-40px |
+| Subhead | Inter | 600 | 18-20px |
+| Body | Inter | 400 | 14-16px |
+| Price | Inter | 700 | 16-24px |
+| Caption | Inter | 400 | 12px |
+
+---
+
+## 17. Navigation & Routing
+
+### Public Navigation
+
+```
+Navbar:
+├── Logo (→ /)
+├── Katalog (→ /products)
+├── Tentang (→ /about)
+├── 🛒 Cart Icon + Badge (→ /cart)
+└── Login / User Dropdown (→ /login or /profile)
+```
+
+### User Routes
+
+| Route | Page | Auth |
+|-------|------|------|
+| `/` | Landing/Homepage | ❌ |
+| `/products` | Product catalog | ❌ |
+| `/products/[slug]` | Product detail | ❌ |
+| `/categories/[slug]` | Category filter | ❌ |
+| `/cart` | Shopping cart | ✅ |
+| `/checkout` | Checkout | ✅ |
+| `/rentals` | My rental history | ✅ |
+| `/rentals/[id]` | Rental detail | ✅ |
+| `/profile` | Profile + address | ✅ |
+| `/about` | About & store info | ❌ |
+| `/login` | Login | ❌ |
+| `/register` | Register | ❌ |
+
+### Admin Routes
+
+| Route | Page |
+|-------|------|
+| `/admin` | Dashboard |
+| `/admin/products` | Product management |
+| `/admin/categories` | Category management |
+| `/admin/rentals` | Rental management |
+| `/admin/payments` | Payment verification |
+| `/admin/users` | User management |
+| `/admin/settings` | Store settings |
+
+---
+
+## 18. Middleware Stack
+
+### Laravel Middleware
+
+| Middleware | Applied To | Purpose |
+|-----------|-----------|---------|
+| `auth:sanctum` | All `/cart`, `/rentals`, `/users`, `/payments` | Verify Sanctum token |
+| `ensure.is.admin` | All `/admin/*` | Check `user.role === 'admin'` |
+| `ensure.has.address` | `POST /rentals/checkout` | Block if user has no address |
+| `ensure.store.open` | `POST /rentals/checkout` | Block if store is closed |
+| `throttle:60,1` | All API routes | Rate limit 60 req/min |
+| `throttle:5,1` | Auth routes | Rate limit 5 req/min for login/register |
+
+---
+
+## 19. Scheduled Tasks & Cron Jobs
+
+```php
+// app/Console/Kernel.php → schedule()
+$schedule->command('rentals:auto-cancel-unpaid')->hourly();
+    // Cancel rentals yang pending_payment > 24 jam
+
+$schedule->command('rentals:check-overdue')->dailyAt('01:00');
+    // Mark rentals yang melewati rental_end sebagai overdue
+
+$schedule->command('rentals:send-pickup-reminders')->dailyAt('08:00');
+    // Kirim reminder ke user yang pickup H-1
+
+$schedule->command('reports:daily')->dailyAt('23:00');
+    // Generate laporan harian admin (total rental, revenue)
+```
+
+---
+
+## 20. Environment & Deployment
+
+### Frontend `.env.local`
+```env
+NEXT_PUBLIC_API_URL=http://localhost:8000/api
+NEXT_PUBLIC_APP_NAME=Matterhorn.co
+NEXT_PUBLIC_STORE_NAME=Matterhorn Outdoor Equipment
+```
+
+### Backend `.env`
+```env
+APP_NAME=Matterhorn
+APP_URL=http://localhost:8000
+APP_ENV=local
+
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=matterhorn
+DB_USERNAME=root
+DB_PASSWORD=
+
+SANCTUM_STATEFUL_DOMAINS=localhost:3000
+FRONTEND_URL=http://localhost:3000
+
+FILESYSTEM_DISK=public
+```
+
+---
+
+## 21. Naming Conventions
+
+| Category | Convention | Example |
+|----------|-----------|---------|
+| **Laravel Models** | PascalCase singular | `Rental.php`, `CartItem.php` |
+| **Laravel Controllers** | PascalCase + Controller | `RentalController.php` |
+| **Laravel Migrations** | snake_case with verb | `create_rentals_table.php` |
+| **Laravel Form Requests** | PascalCase + Request | `CheckoutRequest.php` |
+| **Laravel Services** | PascalCase + Service | `RentalService.php` |
+| **Laravel Enums** | PascalCase | `RentalStatus.php` |
+| **API Routes** | kebab-case plural | `/api/cart/items`, `/api/rentals` |
+| **Next.js Pages** | `page.tsx` in folder | `products/[slug]/page.tsx` |
+| **React Components** | PascalCase.tsx | `ProductCard.tsx` |
+| **Hooks** | use + camelCase | `useCart.ts` |
+| **Services (FE)** | kebab.service.ts | `rental.service.ts` |
+| **Types (FE)** | kebab.types.ts | `rental.types.ts` |
+| **Stores** | use + PascalCase + Store | `useCartStore.ts` |
+| **DB Columns** | snake_case | `price_per_day`, `rental_start` |
+
+---
+
+> **Dokumen ini adalah blueprint lengkap untuk Matterhorn.co.** Berikan ke LLM lain sebagai konteks awal, dan mereka akan bisa membangun platform ini dari nol dengan arsitektur yang solid dan konsisten.
