@@ -14,6 +14,7 @@
 - [Profile](#profile)
 - [Addresses](#addresses)
 - [Store Status](#store-status)
+- [Admin — Dashboard](#admin--dashboard)
 - [Admin — Rentals](#admin--rentals)
 - [Admin — Products](#admin--products)
 - [Admin — Payments](#admin--payments)
@@ -446,6 +447,82 @@ Get the current open/closed status of the physical store.
   }
 }
 ```
+
+---
+
+## Admin — Dashboard 🔒🛡️
+
+All admin endpoints require `Authorization: Bearer {token}` + `role: admin`.
+
+### `GET /admin/dashboard`
+
+Returns aggregated statistics for the admin desktop dashboard.
+
+**Headers:** `Authorization: Bearer {token}`
+
+**Response (200):**
+```json
+{
+  "status": "success",
+  "data": {
+    "total_users": 24,
+    "users_change": 2.16,
+
+    "active_rentals": 8,
+    "rentals_change": 2.16,
+
+    "total_products": 56,
+    "products_change": -0.1,
+
+    "total_revenue": 12500000,
+    "revenue_change": 23.16,
+
+    "status_breakdown": {
+      "booked": 3,
+      "active": 6,
+      "returned": 45,
+      "canceled": 2,
+      "overdue": 2
+    },
+    "monthly_revenue": [
+      { "month": "2026-01", "total": 1500000 },
+      { "month": "2026-02", "total": 2300000 },
+      { "month": "2026-03", "total": 3100000 }
+    ],
+    "recent_rentals": [
+      {
+        "id": 1,
+        "invoice_no": "INV-20260415-0001",
+        "user": { "id": 2, "name": "Customer Name" },
+        "status": "active",
+        "total_price": 150000,
+        "start_date": "2026-04-15T08:00:00.000000Z",
+        "end_date": "2026-04-17T08:00:00.000000Z",
+        "items": [...],
+        "payment": { "status": "verified", "amount": 150000 }
+      }
+    ]
+  }
+}
+```
+
+**Response Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `total_users` | integer | Jumlah total customer terdaftar |
+| `users_change` | float | Persentase perubahan user bulan ini vs bulan lalu |
+| `active_rentals` | integer | Jumlah rental status `active` + `overdue` |
+| `rentals_change` | float | Persentase perubahan rental aktif |
+| `total_products` | integer | Total stok semua produk |
+| `products_change` | float | Persentase perubahan produk |
+| `total_revenue` | float | Total pendapatan dari payment `verified` |
+| `revenue_change` | float | Persentase perubahan revenue |
+| `status_breakdown` | object | Jumlah rental per status |
+| `monthly_revenue` | array | Revenue per bulan (6 bulan terakhir) |
+| `recent_rentals` | array | 5 rental terbaru |
+
+> **Note:** Persentase `_change` dihitung dengan membandingkan data bulan ini vs bulan lalu. Jika bulan lalu = 0 dan bulan ini > 0, maka hasilnya `+100%`. Jika keduanya 0, hasilnya `0%`.
 
 ---
 
