@@ -104,7 +104,6 @@ class AdminDashboardController extends Controller
         return response()->json([
             'status' => 'success',
             'data'   => [
-                // Card stats with percentage changes
                 'total_users'      => $totalUsers,
                 'users_change'     => $usersChange,
 
@@ -117,7 +116,6 @@ class AdminDashboardController extends Controller
                 'total_revenue'    => (float) $totalRevenue,
                 'revenue_change'   => $revenueChange,
 
-                // Breakdown & charts
                 'status_breakdown' => $statusBreakdown,
                 'monthly_revenue'  => $monthlyRevenue,
                 'recent_rentals'   => \App\Http\Resources\RentalResource::collection($recentRentals),

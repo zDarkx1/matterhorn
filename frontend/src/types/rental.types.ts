@@ -40,5 +40,8 @@ export interface Payment {
   payment_method: 'qris' | 'cash';
   status: 'pending' | 'verified';
   proof_url: string | null;
+  qris_invoice: string | null;
+  qris_url: string | null;
+  expired_at: string | null;
   created_at: string;
 }

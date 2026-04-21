@@ -35,4 +35,10 @@ return [
         ],
     ],
 
+    'paydigital' => [
+        'key'      => env('PAYDIGITAL_API_KEY'),
+        'store_id' => env('PAYDIGITAL_STORE_ID', 1),
+        'base_url' => env('PAYDIGITAL_BASE_URL', 'http://paydigital.biz.id/api'),
+    ],
+
 ];

@@ -163,6 +163,9 @@ export default function Navbar() {
                       <Link href="/profile" className="block px-4 py-3 text-sm hover:bg-gray-50 transition border-b border-gray-100" onClick={() => setShowUserMenu(false)}>
                         Profil Saya
                       </Link>
+                      <Link href="/rentals" className="block px-4 py-3 text-sm hover:bg-gray-50 transition border-b border-gray-100" onClick={() => setShowUserMenu(false)}>
+                        Riwayat Sewa
+                      </Link>
                       {isAdmin && (
                         <Link href="/admin" className="block px-4 py-3 text-sm hover:bg-gray-50 transition border-b border-gray-100 text-brand-orange font-medium" onClick={() => setShowUserMenu(false)}>
                           Admin Panel
@@ -200,6 +203,7 @@ export default function Navbar() {
               {user ? (
                 <>
                   <Link href="/profile" className="block py-3 text-sm font-bold uppercase tracking-wide border-b border-gray-100" onClick={() => setMobileMenu(false)}>Profil</Link>
+                  <Link href="/rentals" className="block py-3 text-sm font-bold uppercase tracking-wide border-b border-gray-100" onClick={() => setMobileMenu(false)}>Riwayat Sewa</Link>
                   <button onClick={() => { handleLogout(); setMobileMenu(false); }} className="w-full text-left py-3 text-sm font-bold uppercase tracking-wide text-red-600">Logout</button>
                 </>
               ) : (

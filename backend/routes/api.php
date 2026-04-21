@@ -83,6 +83,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/{id}',       [AddressController::class, 'destroy']);
         Route::put('/{id}/default',  [AddressController::class, 'setDefault']);
     });
+
+    // Checkout & Rental History (User)
+    Route::post('/checkout',                    [CheckoutController::class, 'checkout']);
+    Route::get('/rentals',                      [CheckoutController::class, 'myRentals']);
+    Route::get('/rentals/{id}',                 [CheckoutController::class, 'showRental']);
+    Route::post('/rentals/{id}/check-payment',  [CheckoutController::class, 'checkPayment']);
 });
 
 // ═════════════════════════════════════════════════════════════

@@ -16,6 +16,9 @@ class PaymentResource extends JsonResource
             'payment_method' => $this->payment_method,
             'payment_proof'  => $this->payment_proof ? asset('storage/' . $this->payment_proof) : null,
             'status'         => $this->status,
+            'qris_invoice'   => $this->qris_invoice,
+            'qris_url'       => $this->qris_url,
+            'expired_at'     => $this->expired_at?->toISOString(),
             'created_at'     => $this->created_at?->toISOString(),
             'updated_at'     => $this->updated_at?->toISOString(),
         ];
