@@ -40,6 +40,31 @@
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) * 1.4);
+  --animate-expand: expand 0.2s ease-out;
+  --animate-collapse: collapse 0.2s ease-out;
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning: var(--warning);
+  --color-info-foreground: var(--info-foreground);
+  --color-info: var(--info);
+  --color-success-foreground: var(--success-foreground);
+  --color-success: var(--success);
+  --color-destructive-foreground: var(--destructive-foreground);
+  @keyframes expand {
+  from {
+    height: var(--collapsed-height, 0);
+    }
+  to {
+    height: var(--height);
+    }
+  }
+  @keyframes collapse {
+  from {
+    height: var(--height);
+    }
+  to {
+    height: var(--collapsed-height, 0);
+    }
+  }
 }
 
 :root {
@@ -61,7 +86,23 @@
   --border: #E5E7EB;
   --input: #E5E7EB;
   --ring: #D64500;
-  --radius: 0rem;
+  --radius: 0.625rem;
+  --destructive-foreground: var(--color-red-50);
+  --success: var(--color-emerald-600);
+  --success-foreground: var(--color-green-50);
+  --info: var(--color-sky-600);
+  --info-foreground: var(--color-sky-50);
+  --warning: var(--color-yellow-400);
+  --warning-foreground: var(--color-yellow-950);
+  /* Sidebar */
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1A1A1A;
+  --sidebar-primary: #D64500;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #F5F5F5;
+  --sidebar-accent-foreground: #1A1A1A;
+  --sidebar-border: #E5E7EB;
+  --sidebar-ring: #D64500;
 }
 
 .dark {
@@ -83,6 +124,22 @@
   --border: rgba(255, 255, 255, 0.1);
   --input: rgba(255, 255, 255, 0.15);
   --ring: #D64500;
+  --destructive-foreground: var(--color-red-50);
+  --success: var(--color-emerald-600);
+  --success-foreground: var(--color-green-50);
+  --info: var(--color-sky-600);
+  --info-foreground: var(--color-sky-50);
+  --warning: var(--color-yellow-600);
+  --warning-foreground: var(--color-yellow-50);
+  /* Sidebar */
+  --sidebar: #1A1A1A;
+  --sidebar-foreground: #F5F5F5;
+  --sidebar-primary: #D64500;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #2d2d2d;
+  --sidebar-accent-foreground: #F5F5F5;
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+  --sidebar-ring: #D64500;
 }
 
 @layer base {

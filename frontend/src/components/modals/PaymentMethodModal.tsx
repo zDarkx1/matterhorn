@@ -44,7 +44,7 @@ export function PaymentMethodModal({ open, onOpenChange, onSelect }: PaymentMeth
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={({ open: o }) => onOpenChange(o)}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Pilih Metode Pembayaran</DialogTitle>

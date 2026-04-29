@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo, Suspense } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useCartStore } from '@/stores/useCartStore';
 import { storeService, type StoreStatus } from '@/services/store.service';
@@ -17,15 +17,44 @@ import { MapPin, Clock, ShieldCheck, AlertTriangle, ChevronRight, CalendarDays }
 import { Button } from '@/components/ui/button';
 
 export default function CheckoutPage() {
+  return (
+    <Suspense fallback={<div className="max-w-4xl mx-auto px-4 py-20 text-center text-muted-foreground">Memuat checkout...</div>}>
+      <CheckoutContent />
+    </Suspense>
+  );
+}
+
+function CheckoutContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user } = useAuthStore();
-  const { items, totalPrice, totalItems, fetchCart, clearCart } = useCartStore();
+  const { items, fetchCart, clearCart } = useCartStore();
   const [storeStatus, setStoreStatus] = useState<StoreStatus | null>(null);
   const [addresses, setAddresses] = useState<UserAddress[]>([]);
   const [defaultAddress, setDefaultAddress] = useState<UserAddress | null>(null);
   const [loadingAddresses, setLoadingAddresses] = useState(true);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // Parse selected item IDs from URL (?items=cart_xxx,cart_yyy)
+  const selectedItemIds = useMemo(() => {
+    const itemsParam = searchParams.get('items');
+    if (!itemsParam) return null; // null = all items (backward compatible)
+    return itemsParam.split(',').filter(Boolean);
+  }, [searchParams]);
+
+  // Filter items: only show selected ones
+  const checkoutItems = useMemo(() => {
+    if (!selectedItemIds) return items; // no filter = all items
+    return items.filter((i) => selectedItemIds.includes(i.id));
+  }, [items, selectedItemIds]);
+
+  // Calculate totals from filtered items only
+  const totalItems = checkoutItems.reduce((sum, i) => sum + i.quantity, 0);
+  const totalPrice = checkoutItems.reduce(
+    (sum, i) => sum + (i.product?.price_24h || 0) * i.quantity,
+    0
+  );
 
   // Rental date state
   const today = new Date();
@@ -86,6 +115,18 @@ export default function CheckoutPage() {
     );
   }
 
+  if (checkoutItems.length === 0) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-20 text-center">
+        <h2 className="font-display font-bold text-3xl uppercase mb-4">Tidak Ada Item Terpilih</h2>
+        <p className="text-gray-500 mb-6">Pilih item di keranjang terlebih dahulu.</p>
+        <Link href="/cart">
+          <Button className="bg-brand-orange hover:bg-orange-700 text-white">Kembali ke Keranjang</Button>
+        </Link>
+      </div>
+    );
+  }
+
   const canCheckout = defaultAddress !== null;
 
   const handlePaymentSelect = async (method: PaymentMethod) => {
@@ -95,13 +136,16 @@ export default function CheckoutPage() {
         payment_method: method,
         start_date: `${startDate} 09:00:00`,
         end_date: `${endDate} 09:00:00`,
+        // Send selected item_ids so backend only processes these
+        ...(selectedItemIds ? { item_ids: selectedItemIds } : {}),
       });
 
       toast.success('Pesanan berhasil dibuat!', {
         description: `Invoice: ${rental.invoice_no}`,
       });
 
-      clearCart();
+      // Re-fetch cart (backend already removed checked-out items)
+      await fetchCart();
       router.push(`/payment/${rental.id}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Gagal membuat pesanan.');
@@ -211,7 +255,7 @@ export default function CheckoutPage() {
           <div className="border border-gray-200 p-6 rounded-lg">
             <h3 className="font-display font-bold uppercase text-sm mb-4">Ringkasan Pesanan</h3>
             <div className="space-y-3">
-              {items.map((item) => (
+              {checkoutItems.map((item) => (
                 <div key={item.id} className="flex items-center gap-3 py-2 border-b border-gray-100 last:border-0">
                   <div className="w-12 h-12 bg-gray-100 rounded relative flex-shrink-0 overflow-hidden">
                     <Image
@@ -224,7 +268,14 @@ export default function CheckoutPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{item.product?.name}</p>
-                    <p className="text-xs text-muted-foreground">x{item.quantity} &middot; {rentalDays} hari</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs text-muted-foreground">x{item.quantity} &middot; {rentalDays} hari</p>
+                      {item.size && (
+                        <span className="text-[10px] font-bold bg-brand-orange/10 text-brand-orange px-1.5 py-0.5 rounded">
+                          {item.size}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <span className="font-bold text-sm text-nowrap">{formatRupiah((item.product?.price_24h || 0) * item.quantity * rentalDays)}</span>
                 </div>

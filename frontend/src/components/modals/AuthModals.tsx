@@ -29,7 +29,7 @@ export function SessionExpiredModal({ open, onOpenChange }: SessionExpiredModalP
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={({ open: o }) => onOpenChange(o)}>
       <DialogContent showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>Sesi Berakhir</DialogTitle>
@@ -74,7 +74,7 @@ export function SignInModal({ open, onOpenChange }: SignInModalProps) {
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={({ open: o }) => onOpenChange(o)}>
       <DialogContent className="sm:max-w-sm">
         <div className="flex flex-col items-center gap-2">
           <div className="flex size-11 shrink-0 items-center justify-center rounded-full border" aria-hidden="true">

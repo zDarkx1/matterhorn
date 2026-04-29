@@ -75,10 +75,7 @@ export default function Navbar() {
 
             {/* Logo */}
             <Link href="/" className="flex-shrink-0 flex items-center cursor-pointer">
-              <div className="flex flex-col leading-none">
-                <span className="font-display font-bold text-2xl tracking-tighter text-black">MATTERHORN</span>
-                <span className="text-[0.6rem] tracking-[0.2em] text-gray-500 uppercase">Adventure Rental</span>
-              </div>
+              <img src="/logo.png" alt="Matterhorn — Adventure Rental" className="h-14 w-auto object-contain" />
             </Link>
 
             {/* Desktop Nav */}

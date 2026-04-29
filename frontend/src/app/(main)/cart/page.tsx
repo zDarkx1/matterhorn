@@ -146,7 +146,14 @@ export default function CartPage() {
                   <Link href={`/products/${item.product_id}`} className="font-display font-bold text-sm uppercase hover:text-brand-orange transition">
                     {item.product?.name || `Product #${item.product_id}`}
                   </Link>
-                  <span className="text-xs text-gray-500 uppercase">{item.product?.category}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500 uppercase">{item.product?.category}</span>
+                    {item.size && (
+                      <span className="text-[10px] font-bold bg-brand-orange/10 text-brand-orange px-2 py-0.5 rounded uppercase">
+                        Size: {item.size}
+                      </span>
+                    )}
+                  </div>
                   <p className="text-brand-orange font-bold text-sm mt-1">
                     {formatRupiah(item.product?.price_24h || 0)} <span className="text-gray-500 font-normal">/hari</span>
                   </p>

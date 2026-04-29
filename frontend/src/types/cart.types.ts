@@ -6,6 +6,7 @@ export interface CartItem {
   id: string;
   product_id: number;
   quantity: number;
+  size?: string;
   product?: Product;
 }
 
@@ -18,4 +19,5 @@ export interface CartData {
 export interface AddToCartPayload {
   product_id: number;
   quantity: number;
+  size?: string;
 }

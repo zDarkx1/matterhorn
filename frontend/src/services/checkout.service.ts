@@ -6,6 +6,7 @@ export interface CheckoutPayload {
   payment_method: 'cash' | 'qris';
   start_date: string;
   end_date: string;
+  item_ids?: string[];
 }
 
 export interface CheckoutResponse {

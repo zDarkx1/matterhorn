@@ -246,7 +246,7 @@ export default function ProfilePage() {
       </div>
 
       {/* ═══ Address Modal ═══ */}
-      <Dialog open={addrModalOpen} onOpenChange={setAddrModalOpen}>
+      <Dialog open={addrModalOpen} onOpenChange={({ open }) => setAddrModalOpen(open)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{editingAddrId ? 'Edit Alamat' : 'Tambah Alamat Baru'}</DialogTitle>

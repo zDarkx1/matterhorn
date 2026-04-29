@@ -6,6 +6,7 @@ export interface Product {
   category: string;
   gender: 'unisex' | 'pria' | 'wanita' | 'anak';
   description: string | null;
+  image: string | null;
   image_url: string | null;
   price_24h: number;
   stock_total: number;
@@ -15,6 +16,7 @@ export interface Product {
 }
 
 export interface ProductSize {
+  id: number;
   size: string;
   stock: number;
 }

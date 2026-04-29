@@ -1,4 +1,6 @@
 import ToastContainer from '@/components/ui/Toast';
+import Navbar from '@/components/layout/Navbar';
+import Footer from '@/components/layout/Footer';
 
 export default function AuthLayout({
   children,
@@ -8,9 +10,11 @@ export default function AuthLayout({
   return (
     <>
       <ToastContainer />
-      <main className="min-h-screen flex items-center justify-center bg-brand-gray">
+      <Navbar />
+      <main className="flex-1 bg-white">
         {children}
       </main>
+      <Footer />
     </>
   );
 }
