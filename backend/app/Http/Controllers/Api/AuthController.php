@@ -10,6 +10,7 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Laravel\Socialite\Facades\Socialite;
 
 class AuthController extends Controller
 {
@@ -42,6 +43,15 @@ class AuthController extends Controller
      */
     public function login(LoginRequest $request): JsonResponse
     {
+        // Check if user exists and is Google-only (no password)
+        $user = User::where('email', $request->email)->first();
+        if ($user && $user->isGoogleOnly()) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Akun ini terdaftar melalui Google. Silakan gunakan tombol "Lanjutkan dengan Google" untuk masuk.',
+            ], 401);
+        }
+
         if (!Auth::attempt($request->only('email', 'password'))) {
             return response()->json([
                 'status'  => 'error',
@@ -87,6 +97,73 @@ class AuthController extends Controller
                 'user' => new UserResource($request->user()),
             ],
         ]);
+    }
+
+    /**
+     * GET /auth/google/redirect (web route)
+     *
+     * Redirect user to Google OAuth consent screen.
+     */
+    public function googleRedirect()
+    {
+        return Socialite::driver('google')->stateless()->redirect();
+    }
+
+    /**
+     * GET /auth/google/callback (web route)
+     *
+     * Handle Google callback, find/create user, and redirect to frontend.
+     *
+     * Rules:
+     * - If user exists with matching email → link google_id and login
+     * - If user exists with matching google_id → login
+     * - If no user found → create new account (password = null, google-only)
+     * - Google-only users CANNOT login by email/password and CANNOT re-register
+     */
+    public function googleCallback()
+    {
+        $frontendUrl = env('FRONTEND_URL', 'http://localhost:3000');
+
+        try {
+            $googleUser = Socialite::driver('google')->stateless()->user();
+        } catch (\Exception $e) {
+            \Log::error('Google OAuth failed: ' . $e->getMessage());
+            return redirect($frontendUrl . '/login?error=' . urlencode('Google login gagal: ' . $e->getMessage()));
+        }
+
+        // Try to find user by google_id first, then by email
+        $user = User::where('google_id', $googleUser->getId())->first();
+
+        if (!$user) {
+            $user = User::where('email', $googleUser->getEmail())->first();
+        }
+
+        if ($user) {
+            // Existing user — link google_id if not yet linked
+            if (!$user->google_id) {
+                $user->update([
+                    'google_id' => $googleUser->getId(),
+                    'avatar'    => $googleUser->getAvatar(),
+                ]);
+            }
+        } else {
+            // New user — create google-only account (no password)
+            $user = User::create([
+                'name'      => $googleUser->getName(),
+                'email'     => $googleUser->getEmail(),
+                'google_id' => $googleUser->getId(),
+                'avatar'    => $googleUser->getAvatar(),
+                'password'  => null,
+            ]);
+        }
+
+        // Generate Sanctum token
+        $token = $user->createToken('google-auth')->plainTextToken;
+
+        // Redirect to frontend with token and user data
+        $userData = urlencode(json_encode(new UserResource($user)));
+
+        return redirect($frontendUrl . '/auth/google/callback?token=' . $token . '&user=' . $userData);
     }
 
     /**

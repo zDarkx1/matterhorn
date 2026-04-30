@@ -23,7 +23,7 @@ export default function MainLayout({
   return (
     <>
       <Navbar />
-      <main className="flex-1">{children}</main>
+      <main id="main-content" role="main" className="flex-1">{children}</main>
       <Footer />
       <AiChatWidget />
       <SessionExpiredModal open={sessionExpired} onOpenChange={setSessionExpired} />

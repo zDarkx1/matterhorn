@@ -15,9 +15,9 @@ export default function Footer() {
               Penyedia peralatan outdoor premium no. 1 di Bandung. Kami menjamin kualitas, kebersihan, dan keamanan setiap alat yang Anda sewa.
             </p>
             <div className="flex gap-4">
-              <a href="#" className="w-8 h-8 bg-gray-700 hover:bg-brand-orange flex items-center justify-center text-white transition text-xs font-bold">IG</a>
-              <a href="#" className="w-8 h-8 bg-gray-700 hover:bg-brand-orange flex items-center justify-center text-white transition text-xs font-bold">FB</a>
-              <a href="#" className="w-8 h-8 bg-gray-700 hover:bg-brand-orange flex items-center justify-center text-white transition text-xs font-bold">YT</a>
+              <a href="#" className="w-8 h-8 bg-gray-700 hover:bg-brand-orange flex items-center justify-center text-white transition text-xs font-bold" aria-label="Instagram">IG</a>
+              <a href="#" className="w-8 h-8 bg-gray-700 hover:bg-brand-orange flex items-center justify-center text-white transition text-xs font-bold" aria-label="Facebook">FB</a>
+              <a href="#" className="w-8 h-8 bg-gray-700 hover:bg-brand-orange flex items-center justify-center text-white transition text-xs font-bold" aria-label="YouTube">YT</a>
             </div>
           </div>
 
@@ -48,12 +48,14 @@ export default function Footer() {
             <h4 className="text-white font-display font-bold uppercase tracking-wider mb-6 text-sm">Berlangganan</h4>
             <p className="text-xs mb-4">Dapatkan info promo terbaru.</p>
             <div className="flex">
+              <label htmlFor="footer-email" className="sr-only">Alamat email untuk newsletter</label>
               <input
+                id="footer-email"
                 type="email"
                 placeholder="Email Anda"
-                className="w-full bg-brand-dark text-white px-4 py-2 text-sm outline-none border border-gray-700 focus:border-brand-orange transition"
+                className="w-full bg-brand-dark text-white px-4 py-2 text-sm border border-gray-700 focus:border-brand-orange transition"
               />
-              <button className="bg-brand-orange text-white px-4 font-bold hover:bg-orange-700 transition">GO</button>
+              <button className="bg-brand-orange text-white px-4 font-bold hover:bg-orange-700 transition" aria-label="Berlangganan newsletter">GO</button>
             </div>
           </div>
         </div>

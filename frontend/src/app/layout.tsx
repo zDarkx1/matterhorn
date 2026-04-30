@@ -26,6 +26,10 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-screen flex flex-col">
+        {/* WCAG: Skip Navigation Link */}
+        <a href="#main-content" className="skip-nav">
+          Langsung ke konten utama
+        </a>
         {children}
         <Toaster />
       </body>

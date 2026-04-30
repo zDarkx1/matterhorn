@@ -90,7 +90,7 @@ export function SignInModal({ open, onOpenChange }: SignInModalProps) {
 
         <form onSubmit={handleSubmit} className="space-y-5">
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-lg">
+            <div role="alert" aria-live="assertive" className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-lg animate-[error-pulse_0.5s_ease-in-out]">
               {error}
             </div>
           )}

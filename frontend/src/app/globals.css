@@ -164,3 +164,53 @@
 .font-display {
   font-family: 'Oswald', sans-serif;
 }
+
+/* ─── WCAG: Focus Visible Ring ─────────────────────────────── */
+/* Provide a strong, visible focus indicator for keyboard users */
+*:focus-visible {
+  outline: 2px solid var(--ring, #D64500);
+  outline-offset: 2px;
+}
+
+/* Remove default outline only when mouse/touch is used */
+*:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ─── WCAG: Screen Reader Only ─────────────────────────────── */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* ─── WCAG: Skip Navigation ───────────────────────────────── */
+.skip-nav {
+  position: absolute;
+  top: -100%;
+  left: 16px;
+  z-index: 9999;
+  padding: 12px 24px;
+  background: #D64500;
+  color: white;
+  font-weight: 700;
+  font-size: 14px;
+  border-radius: 0 0 8px 8px;
+  transition: top 0.2s ease;
+}
+.skip-nav:focus {
+  top: 0;
+}
+
+/* ─── UX: Error Pulse Animation ────────────────────────────── */
+@keyframes error-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(220, 38, 38, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+}

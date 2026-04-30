@@ -5,12 +5,7 @@ import Link from 'next/link';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useCartStore } from '@/stores/useCartStore';
 import { useUIStore } from '@/stores/useUIStore';
-import { ShoppingBag, Search, Menu, X, User, LogOut, ChevronDown } from 'lucide-react';
-
-const NAV_CATEGORIES = [
-  'Tenda', 'Carrier & Daypack', 'Sleeping Bag', 'Kompor & Memasak',
-  'Headlamp & Senter', 'Trekking Pole', 'Navigasi & GPS', 'Water Filter',
-];
+import { ShoppingBag, Search, Menu, X, User, LogOut, ChevronDown, ChevronRight } from 'lucide-react';
 
 export default function Navbar() {
   const { user, isAdmin, logout } = useAuthStore();
@@ -19,12 +14,31 @@ export default function Navbar() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [mobileEquipOpen, setMobileEquipOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (user) fetchCart();
   }, [user, fetchCart]);
+
+  // Load categories from API
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'}/products/categories`,
+          { headers: { Accept: 'application/json' } }
+        );
+        const data = await res.json();
+        if (data.status === 'success' && Array.isArray(data.data)) {
+          setCategories(data.data);
+        }
+      } catch { /* Silently fail — mega menu just stays empty */ }
+    };
+    loadCategories();
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 10);
@@ -58,7 +72,7 @@ export default function Navbar() {
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex gap-4">
             <span>Garansi Alat Steril</span>
-            <span>|</span>
+            <span aria-hidden="true">|</span>
             <span>Pengiriman Seluruh Bandung</span>
           </div>
           <div className="flex gap-4">
@@ -69,7 +83,11 @@ export default function Navbar() {
       </div>
 
       {/* Main Navbar */}
-      <nav className={`sticky top-0 z-50 bg-white border-b border-gray-200 transition-shadow duration-300 ${scrolled ? 'shadow-md' : 'shadow-sm'}`}>
+      <nav
+        className={`sticky top-0 z-50 bg-white border-b border-gray-200 transition-shadow duration-300 ${scrolled ? 'shadow-md' : 'shadow-sm'}`}
+        role="navigation"
+        aria-label="Navigasi utama"
+      >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-20">
 
@@ -82,20 +100,30 @@ export default function Navbar() {
             <div className="hidden md:flex space-x-8 items-center h-full">
               {/* Equipment Mega Menu */}
               <div className="group h-full flex items-center">
-                <button className="text-sm font-bold uppercase tracking-wide hover:text-brand-orange transition border-b-2 border-transparent group-hover:border-brand-orange py-7 h-full flex items-center gap-1">
-                  Equipment <ChevronDown className="w-3 h-3" />
+                <button
+                  className="text-sm font-bold uppercase tracking-wide hover:text-brand-orange transition border-b-2 border-transparent group-hover:border-brand-orange py-7 h-full flex items-center gap-1"
+                  aria-expanded="false"
+                  aria-haspopup="true"
+                >
+                  Equipment <ChevronDown className="w-3 h-3" aria-hidden="true" />
                 </button>
                 <div className="absolute top-full left-0 w-full bg-white border-b border-gray-200 shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50">
                   <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
                     <h4 className="font-display font-bold text-lg mb-6 text-brand-black uppercase">Semua Equipment</h4>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      {NAV_CATEGORIES.map((cat) => (
-                        <Link key={cat} href={`/products?category=${encodeURIComponent(cat)}`} className="group/item flex items-center gap-2 hover:bg-gray-50 p-2 transition-all">
-                          <span className="w-1 h-8 bg-gray-200 group-hover/item:bg-brand-orange transition-colors" />
-                          <span className="text-sm font-medium uppercase text-gray-600 group-hover/item:text-brand-black tracking-wide">{cat}</span>
-                        </Link>
-                      ))}
-                    </div>
+                    {categories.length > 0 ? (
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {categories.map((cat) => (
+                          <Link key={cat} href={`/products?category=${encodeURIComponent(cat)}`} className="group/item flex items-center gap-2 hover:bg-gray-50 p-2 transition-all">
+                            <span className="w-1 h-8 bg-gray-200 group-hover/item:bg-brand-orange transition-colors" aria-hidden="true" />
+                            <span className="text-sm font-medium uppercase text-gray-600 group-hover/item:text-brand-black tracking-wide">{cat}</span>
+                          </Link>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-4">
+                        <Link href="/products" className="text-sm text-brand-orange font-medium hover:underline">Lihat Semua Produk →</Link>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -113,12 +141,14 @@ export default function Navbar() {
             <div className="flex items-center gap-3">
               {/* Search */}
               <div className="flex items-center relative">
+                <label htmlFor="navbar-search" className="sr-only">Cari alat outdoor</label>
                 <input
+                  id="navbar-search"
                   ref={searchRef}
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className={`transition-all duration-300 bg-gray-100 border-none focus:ring-1 focus:ring-brand-black text-sm h-10 outline-none ${
+                  className={`transition-all duration-300 bg-gray-100 border-none text-sm h-10 ${
                     isSearchOpen ? 'w-48 opacity-100 px-3' : 'w-0 opacity-0 px-0'
                   }`}
                   placeholder="Cari alat..."
@@ -128,16 +158,20 @@ export default function Navbar() {
                     }
                   }}
                 />
-                <button onClick={() => setSearchOpen(!isSearchOpen)} className="p-2 hover:text-brand-orange transition z-10 bg-white">
-                  <Search className="w-5 h-5" />
+                <button
+                  onClick={() => setSearchOpen(!isSearchOpen)}
+                  className="p-2 hover:text-brand-orange transition z-10 bg-white"
+                  aria-label={isSearchOpen ? 'Tutup pencarian' : 'Buka pencarian'}
+                >
+                  <Search className="w-5 h-5" aria-hidden="true" />
                 </button>
               </div>
 
               {/* Cart */}
-              <Link href="/cart" className="relative p-2 hover:text-brand-orange transition">
-                <ShoppingBag className="w-5 h-5" />
+              <Link href="/cart" className="relative p-2 hover:text-brand-orange transition" aria-label={`Keranjang belanja${totalItems > 0 ? `, ${totalItems} item` : ''}`}>
+                <ShoppingBag className="w-5 h-5" aria-hidden="true" />
                 {totalItems > 0 && (
-                  <span className="absolute top-0 right-0 h-4 w-4 bg-brand-orange text-white text-[10px] flex items-center justify-center font-bold rounded-full">
+                  <span className="absolute top-0 right-0 h-4 w-4 bg-brand-orange text-white text-[10px] flex items-center justify-center font-bold rounded-full" aria-hidden="true">
                     {totalItems}
                   </span>
                 )}
@@ -149,27 +183,30 @@ export default function Navbar() {
                   <button
                     onClick={() => setShowUserMenu(!showUserMenu)}
                     className="flex items-center gap-2 p-2 hover:text-brand-orange transition text-sm"
+                    aria-expanded={showUserMenu}
+                    aria-haspopup="true"
+                    aria-label="Menu akun"
                   >
-                    <User className="w-5 h-5" />
+                    <User className="w-5 h-5" aria-hidden="true" />
                     <span className="font-medium max-w-[100px] truncate">{user.name}</span>
-                    <ChevronDown className="w-3 h-3" />
+                    <ChevronDown className="w-3 h-3" aria-hidden="true" />
                   </button>
 
                   {showUserMenu && (
-                    <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-gray-200 shadow-lg z-50">
-                      <Link href="/profile" className="block px-4 py-3 text-sm hover:bg-gray-50 transition border-b border-gray-100" onClick={() => setShowUserMenu(false)}>
+                    <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-gray-200 shadow-lg z-50" role="menu">
+                      <Link href="/profile" className="block px-4 py-3 text-sm hover:bg-gray-50 transition border-b border-gray-100" role="menuitem" onClick={() => setShowUserMenu(false)}>
                         Profil Saya
                       </Link>
-                      <Link href="/rentals" className="block px-4 py-3 text-sm hover:bg-gray-50 transition border-b border-gray-100" onClick={() => setShowUserMenu(false)}>
+                      <Link href="/rentals" className="block px-4 py-3 text-sm hover:bg-gray-50 transition border-b border-gray-100" role="menuitem" onClick={() => setShowUserMenu(false)}>
                         Riwayat Sewa
                       </Link>
                       {isAdmin && (
-                        <Link href="/admin" className="block px-4 py-3 text-sm hover:bg-gray-50 transition border-b border-gray-100 text-brand-orange font-medium" onClick={() => setShowUserMenu(false)}>
+                        <Link href="/admin" className="block px-4 py-3 text-sm hover:bg-gray-50 transition border-b border-gray-100 text-brand-orange font-medium" role="menuitem" onClick={() => setShowUserMenu(false)}>
                           Admin Panel
                         </Link>
                       )}
-                      <button onClick={handleLogout} className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 transition text-red-600 flex items-center gap-2">
-                        <LogOut className="w-4 h-4" /> Logout
+                      <button onClick={handleLogout} className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 transition text-red-600 flex items-center gap-2" role="menuitem">
+                        <LogOut className="w-4 h-4" aria-hidden="true" /> Logout
                       </button>
                     </div>
                   )}
@@ -181,7 +218,12 @@ export default function Navbar() {
               )}
 
               {/* Mobile Menu Toggle */}
-              <button onClick={toggleMobileMenu} className="md:hidden p-2 hover:text-brand-orange transition">
+              <button
+                onClick={toggleMobileMenu}
+                className="md:hidden p-2 hover:text-brand-orange transition"
+                aria-label={isMobileMenuOpen ? 'Tutup menu' : 'Buka menu'}
+                aria-expanded={isMobileMenuOpen}
+              >
                 {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
               </button>
             </div>
@@ -191,16 +233,45 @@ export default function Navbar() {
         {/* Mobile Menu */}
         {isMobileMenuOpen && (
           <div className="md:hidden bg-white border-t border-gray-200 shadow-lg">
-            <div className="px-4 py-4 space-y-2">
+            <div className="px-4 py-4 space-y-1">
+              {/* Equipment Accordion */}
+              <div>
+                <button
+                  onClick={() => setMobileEquipOpen(!mobileEquipOpen)}
+                  className="w-full flex justify-between items-center py-3 text-sm font-bold uppercase tracking-wide border-b border-gray-100"
+                  aria-expanded={mobileEquipOpen}
+                >
+                  Equipment
+                  <ChevronRight className={`w-4 h-4 transition-transform ${mobileEquipOpen ? 'rotate-90' : ''}`} aria-hidden="true" />
+                </button>
+                {mobileEquipOpen && (
+                  <div className="pl-4 py-2 space-y-1 bg-gray-50 rounded-b-lg mb-1">
+                    {categories.length > 0 ? categories.map((cat) => (
+                      <Link
+                        key={cat}
+                        href={`/products?category=${encodeURIComponent(cat)}`}
+                        className="block py-2 text-sm text-gray-600 hover:text-brand-orange transition"
+                        onClick={() => setMobileMenu(false)}
+                      >
+                        {cat}
+                      </Link>
+                    )) : (
+                      <Link href="/products" className="block py-2 text-sm text-brand-orange" onClick={() => setMobileMenu(false)}>Lihat Semua Produk</Link>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <Link href="/products" className="block py-3 text-sm font-bold uppercase tracking-wide border-b border-gray-100" onClick={() => setMobileMenu(false)}>Katalog</Link>
               <Link href="/about" className="block py-3 text-sm font-bold uppercase tracking-wide border-b border-gray-100" onClick={() => setMobileMenu(false)}>Tentang Kami</Link>
               <Link href="/cart" className="block py-3 text-sm font-bold uppercase tracking-wide border-b border-gray-100" onClick={() => setMobileMenu(false)}>
-                Keranjang {totalItems > 0 && `(${totalItems})`}
+                Keranjang {totalItems > 0 && <span className="text-brand-orange">({totalItems})</span>}
               </Link>
               {user ? (
                 <>
                   <Link href="/profile" className="block py-3 text-sm font-bold uppercase tracking-wide border-b border-gray-100" onClick={() => setMobileMenu(false)}>Profil</Link>
                   <Link href="/rentals" className="block py-3 text-sm font-bold uppercase tracking-wide border-b border-gray-100" onClick={() => setMobileMenu(false)}>Riwayat Sewa</Link>
+                  {isAdmin && <Link href="/admin" className="block py-3 text-sm font-bold uppercase tracking-wide border-b border-gray-100 text-brand-orange" onClick={() => setMobileMenu(false)}>Admin Panel</Link>}
                   <button onClick={() => { handleLogout(); setMobileMenu(false); }} className="w-full text-left py-3 text-sm font-bold uppercase tracking-wide text-red-600">Logout</button>
                 </>
               ) : (

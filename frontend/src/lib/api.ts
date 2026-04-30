@@ -17,11 +17,15 @@ function getToken(): string | null {
   }
 }
 
+// Auth endpoints that return 401 for invalid credentials (NOT session expiry)
+const AUTH_ENDPOINTS = ['/auth/login', '/auth/register'];
+
 export async function apiFetch<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> {
   const token = getToken();
+  const isAuthEndpoint = AUTH_ENDPOINTS.some((e) => endpoint.startsWith(e));
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -38,9 +42,11 @@ export async function apiFetch<T>(
     headers,
   });
 
-  // Handle 401 → dispatch session-expired event
-  if (response.status === 401) {
-    if (typeof window !== 'undefined') {
+  // Handle 401:
+  // - Auth endpoints (login/register): 401 = wrong credentials → pass through to error handler
+  // - Other endpoints with token: 401 = session expired → dispatch event
+  if (response.status === 401 && !isAuthEndpoint) {
+    if (typeof window !== 'undefined' && token) {
       localStorage.removeItem('matterhorn-auth');
       window.dispatchEvent(new Event('session-expired'));
     }
@@ -72,7 +78,7 @@ export async function apiUpload<T>(
   });
 
   if (response.status === 401) {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && token) {
       localStorage.removeItem('matterhorn-auth');
       window.dispatchEvent(new Event('session-expired'));
     }

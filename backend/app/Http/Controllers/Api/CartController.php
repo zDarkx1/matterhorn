@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\AddToCartRequest;
 use App\Http\Resources\CartItemResource;
 use App\Models\Product;
+use App\Models\ProductSize;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -15,6 +16,9 @@ use Illuminate\Support\Facades\Cache;
  *
  * Setiap user punya cart sendiri yang disimpan di cache (key: "cart_{userId}").
  * Cart persist selama cache TTL (24 jam default).
+ *
+ * Size-aware: product_id + size = unique cart entry.
+ * If a product has sizes, size is required when adding to cart.
  */
 class CartController extends Controller
 {
@@ -40,6 +44,9 @@ class CartController extends Controller
 
     /**
      * POST /api/cart
+     *
+     * Body: { "product_id": 1, "quantity": 2, "size": "M" }
+     * Size is optional — required only if the product has sizes.
      */
     public function store(AddToCartRequest $request): JsonResponse
     {
@@ -47,23 +54,55 @@ class CartController extends Controller
         $cart      = $this->getCart($userId);
         $productId = $request->product_id;
         $quantity  = $request->quantity;
+        $size      = $request->size; // nullable
 
-        // Verify stock
-        $product = Product::findOrFail($productId);
-        $existing = collect($cart)->firstWhere('product_id', $productId);
-        $currentQty = $existing ? $existing['quantity'] : 0;
+        // Verify product exists
+        $product = Product::with('sizes')->findOrFail($productId);
 
-        if (($currentQty + $quantity) > $product->stock_available) {
+        // If product has sizes, size is required
+        if ($product->sizes->isNotEmpty() && empty($size)) {
             return response()->json([
                 'status'  => 'error',
-                'message' => "Stok tidak cukup. Tersedia: {$product->stock_available}.",
+                'message' => 'Pilih ukuran terlebih dahulu.',
             ], 422);
         }
 
-        // Update or add
+        // Stock check: per-size if size provided, otherwise product-level
+        if ($size) {
+            $sizeModel = $product->sizes->firstWhere('size', $size);
+            if (!$sizeModel) {
+                return response()->json([
+                    'status'  => 'error',
+                    'message' => "Ukuran '{$size}' tidak tersedia.",
+                ], 422);
+            }
+
+            // Check existing qty in cart for this product+size
+            $existing = collect($cart)->first(fn($i) => $i['product_id'] === $productId && ($i['size'] ?? null) === $size);
+            $currentQty = $existing ? $existing['quantity'] : 0;
+
+            if (($currentQty + $quantity) > $sizeModel->stock) {
+                return response()->json([
+                    'status'  => 'error',
+                    'message' => "Stok ukuran {$size} tidak cukup. Tersedia: {$sizeModel->stock}.",
+                ], 422);
+            }
+        } else {
+            $existing = collect($cart)->firstWhere('product_id', $productId);
+            $currentQty = $existing ? $existing['quantity'] : 0;
+
+            if (($currentQty + $quantity) > $product->stock_available) {
+                return response()->json([
+                    'status'  => 'error',
+                    'message' => "Stok tidak cukup. Tersedia: {$product->stock_available}.",
+                ], 422);
+            }
+        }
+
+        // Update or add — uniqueness = product_id + size
         $found = false;
         foreach ($cart as &$item) {
-            if ($item['product_id'] === $productId) {
+            if ($item['product_id'] === $productId && ($item['size'] ?? null) === $size) {
                 $item['quantity'] += $quantity;
                 $found = true;
                 break;
@@ -72,18 +111,22 @@ class CartController extends Controller
         unset($item);
 
         if (!$found) {
-            $cart[] = [
+            $entry = [
                 'id'         => uniqid('cart_'),
                 'product_id' => $productId,
                 'quantity'   => $quantity,
             ];
+            if ($size) {
+                $entry['size'] = $size;
+            }
+            $cart[] = $entry;
         }
 
         $this->saveCart($userId, $cart);
 
         return response()->json([
             'status'  => 'success',
-            'message' => "{$product->name} ditambahkan ke keranjang.",
+            'message' => "{$product->name}" . ($size ? " ({$size})" : '') . " ditambahkan ke keranjang.",
             'data'    => [
                 'total_items' => collect($cart)->sum('quantity'),
             ],
@@ -104,12 +147,24 @@ class CartController extends Controller
 
         foreach ($cart as &$item) {
             if ($item['id'] === $itemId) {
-                $product = Product::find($item['product_id']);
-                if ($product && $request->quantity > $product->stock_available) {
-                    return response()->json([
-                        'status'  => 'error',
-                        'message' => "Stok tidak cukup. Tersedia: {$product->stock_available}.",
-                    ], 422);
+                $product = Product::with('sizes')->find($item['product_id']);
+                $size = $item['size'] ?? null;
+
+                if ($product) {
+                    if ($size) {
+                        $sizeModel = $product->sizes->firstWhere('size', $size);
+                        if ($sizeModel && $request->quantity > $sizeModel->stock) {
+                            return response()->json([
+                                'status'  => 'error',
+                                'message' => "Stok ukuran {$size} tidak cukup. Tersedia: {$sizeModel->stock}.",
+                            ], 422);
+                        }
+                    } elseif ($request->quantity > $product->stock_available) {
+                        return response()->json([
+                            'status'  => 'error',
+                            'message' => "Stok tidak cukup. Tersedia: {$product->stock_available}.",
+                        ], 422);
+                    }
                 }
                 $item['quantity'] = $request->quantity;
                 break;

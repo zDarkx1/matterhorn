@@ -24,6 +24,8 @@ class User extends Authenticatable
         'password',
         'phone_number',
         'address',
+        'google_id',
+        'avatar',
     ];
 
     /**
@@ -74,5 +76,13 @@ class User extends Authenticatable
     {
         return $this->addresses()->where('is_default', true)->first()
             ?? $this->addresses()->first();
+    }
+
+    /**
+     * Check if user registered via Google (has no password).
+     */
+    public function isGoogleOnly(): bool
+    {
+        return $this->google_id && !$this->password;
     }
 }

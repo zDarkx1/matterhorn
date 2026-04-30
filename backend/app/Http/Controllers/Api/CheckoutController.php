@@ -65,18 +65,34 @@ class CheckoutController extends Controller
             'payment_method' => ['required', 'in:qris,cash'],
             'start_date'     => ['required', 'date', 'after_or_equal:today'],
             'end_date'       => ['required', 'date', 'after:start_date'],
+            'item_ids'       => ['sometimes', 'array'],
+            'item_ids.*'     => ['string'],
         ]);
 
         $user = $request->user();
 
         // Load user's cart from cache (same as CartController)
-        $cart = Cache::get("cart_{$user->id}", []);
+        $fullCart = Cache::get("cart_{$user->id}", []);
 
-        if (empty($cart)) {
+        if (empty($fullCart)) {
             return response()->json([
                 'status'  => 'error',
                 'message' => 'Keranjang kosong.',
             ], 422);
+        }
+
+        // Filter cart by item_ids if provided
+        $itemIds = $request->input('item_ids', []);
+        if (!empty($itemIds)) {
+            $cart = array_values(array_filter($fullCart, fn($item) => in_array($item['id'], $itemIds)));
+            if (empty($cart)) {
+                return response()->json([
+                    'status'  => 'error',
+                    'message' => 'Tidak ada item terpilih yang valid.',
+                ], 422);
+            }
+        } else {
+            $cart = $fullCart;
         }
 
         // Check user has an address
@@ -87,11 +103,11 @@ class CheckoutController extends Controller
             ], 422);
         }
 
-        // Hydrate cart items with product data
+        // Hydrate cart items with product data (including sizes)
         $productIds = collect($cart)->pluck('product_id')->unique()->toArray();
-        $products   = Product::whereIn('id', $productIds)->get()->keyBy('id');
+        $products   = Product::with('sizes')->whereIn('id', $productIds)->get()->keyBy('id');
 
-        return DB::transaction(function () use ($request, $user, $cart, $products) {
+        return DB::transaction(function () use ($request, $user, $cart, $fullCart, $itemIds, $products) {
             $startDate = Carbon::parse($request->start_date);
             $endDate   = Carbon::parse($request->end_date);
             $days      = max(1, $startDate->diffInDays($endDate));
@@ -110,11 +126,25 @@ class CheckoutController extends Controller
                     ], 422);
                 }
 
-                if ($product->stock_available < $cartItem['quantity']) {
-                    return response()->json([
-                        'status'  => 'error',
-                        'message' => "Stok {$product->name} tidak cukup. Tersedia: {$product->stock_available}.",
-                    ], 422);
+                $size = $cartItem['size'] ?? null;
+
+                // Per-size stock check
+                if ($size) {
+                    $sizeModel = $product->sizes->firstWhere('size', $size);
+                    if (!$sizeModel || $sizeModel->stock < $cartItem['quantity']) {
+                        $available = $sizeModel ? $sizeModel->stock : 0;
+                        return response()->json([
+                            'status'  => 'error',
+                            'message' => "Stok {$product->name} ({$size}) tidak cukup. Tersedia: {$available}.",
+                        ], 422);
+                    }
+                } else {
+                    if ($product->stock_available < $cartItem['quantity']) {
+                        return response()->json([
+                            'status'  => 'error',
+                            'message' => "Stok {$product->name} tidak cukup. Tersedia: {$product->stock_available}.",
+                        ], 422);
+                    }
                 }
 
                 $subtotal = $product->price_24h * $cartItem['quantity'] * $days;
@@ -124,6 +154,7 @@ class CheckoutController extends Controller
                     'product'  => $product,
                     'quantity' => $cartItem['quantity'],
                     'price'    => $product->price_24h,
+                    'size'     => $size,
                 ];
             }
 
@@ -159,7 +190,14 @@ class CheckoutController extends Controller
                     'price_at_rental' => $detail['price'],
                 ]);
 
-                $detail['product']->decrement('stock_available', $detail['quantity']);
+                // Per-size stock decrement
+                if ($detail['size']) {
+                    $detail['product']->sizes()
+                        ->where('size', $detail['size'])
+                        ->decrement('stock', $detail['quantity']);
+                } else {
+                    $detail['product']->decrement('stock_available', $detail['quantity']);
+                }
             }
 
             // Create payment record
@@ -194,8 +232,17 @@ class CheckoutController extends Controller
 
             Payment::create($paymentData);
 
-            // Clear user's cart from cache
-            Cache::forget("cart_{$user->id}");
+            // Remove only checked-out items from cache, keep the rest
+            if (!empty($itemIds)) {
+                $remainingCart = array_values(array_filter($fullCart, fn($item) => !in_array($item['id'], $itemIds)));
+                if (empty($remainingCart)) {
+                    Cache::forget("cart_{$user->id}");
+                } else {
+                    Cache::put("cart_{$user->id}", $remainingCart, now()->addMinutes(60 * 24));
+                }
+            } else {
+                Cache::forget("cart_{$user->id}");
+            }
 
             $rental->load(['user', 'items.product', 'payment']);
 

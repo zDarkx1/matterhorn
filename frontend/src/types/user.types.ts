@@ -9,6 +9,8 @@ export interface User {
   role: UserRole;
   phone_number: string | null;
   address: string | null;
+  avatar: string | null;
+  google_id: string | null;
   created_at: string;
 }
 
@@ -17,11 +19,13 @@ export interface UserAddress {
   user_id: number;
   label: string;
   recipient_name: string;
-  phone_number: string;
-  address_line: string;
+  phone: string;
+  full_address: string;
+  district: string;
   city: string;
   province: string;
   postal_code: string;
+  notes: string | null;
   is_default: boolean;
   created_at: string;
 }

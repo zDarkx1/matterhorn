@@ -188,15 +188,15 @@ function CheckoutContent() {
                       <span className="bg-brand-orange text-white text-[10px] px-1.5 py-0.5 font-bold rounded">Utama</span>
                     )}
                   </div>
-                  <p className="text-sm">{defaultAddress.recipient_name} &bull; {defaultAddress.phone_number}</p>
-                  <p className="text-sm text-gray-500">{defaultAddress.address_line}, {defaultAddress.city}, {defaultAddress.province} {defaultAddress.postal_code}</p>
+                  <p className="text-sm">{defaultAddress.recipient_name} &bull; {defaultAddress.phone}</p>
+                  <p className="text-sm text-gray-500">{defaultAddress.full_address}, {defaultAddress.district}, {defaultAddress.city}, {defaultAddress.province} {defaultAddress.postal_code}</p>
                 </div>
                 <Link href="/profile" className="text-brand-orange hover:underline text-xs font-bold flex items-center gap-1 flex-shrink-0">
                   Ubah <ChevronRight className="w-3 h-3" />
                 </Link>
               </div>
             ) : (
-              <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg">
+              <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg" role="alert">
                 <p className="text-sm text-amber-800 mb-2 font-medium">Alamat belum diatur</p>
                 <p className="text-xs text-amber-600 mb-3">Anda perlu menambahkan alamat sebagai verifikasi identitas sebelum checkout.</p>
                 <Link href="/profile">

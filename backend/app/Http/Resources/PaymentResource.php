@@ -21,6 +21,16 @@ class PaymentResource extends JsonResource
             'expired_at'     => $this->expired_at?->toISOString(),
             'created_at'     => $this->created_at?->toISOString(),
             'updated_at'     => $this->updated_at?->toISOString(),
+            'rental'         => $this->whenLoaded('rental', function () {
+                return [
+                    'id'         => $this->rental->id,
+                    'invoice_no' => $this->rental->invoice_no,
+                    'user'       => $this->rental->user ? [
+                        'id'   => $this->rental->user->id,
+                        'name' => $this->rental->user->name,
+                    ] : null,
+                ];
+            }),
         ];
     }
 }

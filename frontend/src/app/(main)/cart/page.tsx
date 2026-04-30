@@ -7,7 +7,7 @@ import { useCartStore } from '@/stores/useCartStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { formatRupiah } from '@/utils/format';
 import { toast } from 'sonner';
-import { Minus, Plus, Trash2, ShoppingBag, ArrowRight, Check } from 'lucide-react';
+import { Minus, Plus, Trash2, ShoppingBag, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 
@@ -54,8 +54,8 @@ export default function CartPage() {
   if (!user) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-20 text-center">
-        <ShoppingBag className="w-16 h-16 text-gray-300 mx-auto mb-6" />
-        <h2 className="font-display font-bold text-3xl uppercase mb-4">Login Diperlukan</h2>
+        <ShoppingBag className="w-16 h-16 text-gray-300 mx-auto mb-6" aria-hidden="true" />
+        <h2 className="font-display font-bold text-2xl sm:text-3xl uppercase mb-4">Login Diperlukan</h2>
         <p className="text-gray-500 mb-8">Silakan login untuk melihat keranjang Anda.</p>
         <Link href="/login">
           <Button className="bg-brand-orange hover:bg-orange-700 text-white">Login</Button>
@@ -67,8 +67,8 @@ export default function CartPage() {
   if (!loading && items.length === 0) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-20 text-center">
-        <ShoppingBag className="w-16 h-16 text-gray-300 mx-auto mb-6" />
-        <h2 className="font-display font-bold text-3xl uppercase mb-4">Keranjang Kosong</h2>
+        <ShoppingBag className="w-16 h-16 text-gray-300 mx-auto mb-6" aria-hidden="true" />
+        <h2 className="font-display font-bold text-2xl sm:text-3xl uppercase mb-4">Keranjang Kosong</h2>
         <p className="text-gray-500 mb-8">Belum ada barang di keranjang Anda.</p>
         <Link href="/products">
           <Button className="bg-brand-orange hover:bg-orange-700 text-white">Jelajahi Produk</Button>
@@ -92,8 +92,8 @@ export default function CartPage() {
   return (
     <section className="py-8 bg-white min-h-screen">
       <div className="max-w-5xl mx-auto px-4">
-        <h1 className="font-display font-bold text-3xl uppercase mb-8 flex items-center gap-3">
-          <span className="w-1 h-8 bg-brand-orange block" />
+        <h1 className="font-display font-bold text-2xl sm:text-3xl uppercase mb-8 flex items-center gap-3">
+          <span className="w-1 h-8 bg-brand-orange block" aria-hidden="true" />
           Keranjang Sewa
         </h1>
 
@@ -115,63 +115,83 @@ export default function CartPage() {
             {items.map((item) => (
               <div
                 key={item.id}
-                className={`border p-4 flex gap-4 transition-colors ${
+                className={`border p-3 sm:p-4 transition-colors ${
                   selectedIds.has(item.id)
                     ? 'border-brand-orange bg-orange-50/30'
                     : 'border-gray-200'
                 }`}
               >
-                {/* Checkbox */}
-                <div className="flex items-center">
-                  <Checkbox
-                    checked={selectedIds.has(item.id)}
-                    onCheckedChange={() => toggleItem(item.id)}
-                    id={`item-${item.id}`}
-                  />
-                </div>
-
-                {/* Image */}
-                <div className="w-24 h-24 bg-gray-100 flex-shrink-0 relative">
-                  <Image
-                    src={item.product?.image_url || 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=200&q=80'}
-                    alt={item.product?.name || 'Product'}
-                    fill
-                    className="object-cover"
-                    sizes="96px"
-                  />
-                </div>
-
-                {/* Details */}
-                <div className="flex-1 flex flex-col">
-                  <Link href={`/products/${item.product_id}`} className="font-display font-bold text-sm uppercase hover:text-brand-orange transition">
-                    {item.product?.name || `Product #${item.product_id}`}
-                  </Link>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500 uppercase">{item.product?.category}</span>
-                    {item.size && (
-                      <span className="text-[10px] font-bold bg-brand-orange/10 text-brand-orange px-2 py-0.5 rounded uppercase">
-                        Size: {item.size}
-                      </span>
-                    )}
+                {/* Mobile: Stack layout / Desktop: Row layout */}
+                <div className="flex gap-3 sm:gap-4">
+                  {/* Checkbox */}
+                  <div className="flex items-start pt-1">
+                    <Checkbox
+                      checked={selectedIds.has(item.id)}
+                      onCheckedChange={() => toggleItem(item.id)}
+                      id={`item-${item.id}`}
+                      aria-label={`Pilih ${item.product?.name || 'item'}`}
+                    />
                   </div>
-                  <p className="text-brand-orange font-bold text-sm mt-1">
-                    {formatRupiah(item.product?.price_24h || 0)} <span className="text-gray-500 font-normal">/hari</span>
-                  </p>
-                  <div className="flex items-center gap-4 mt-auto">
-                    <div className="flex items-center border border-gray-300">
-                      <button onClick={() => handleQty(item.id, Math.max(1, item.quantity - 1))} className="p-1.5 hover:bg-gray-100"><Minus className="w-3 h-3" /></button>
-                      <span className="px-3 text-sm font-bold">{item.quantity}</span>
-                      <button onClick={() => handleQty(item.id, item.quantity + 1)} className="p-1.5 hover:bg-gray-100"><Plus className="w-3 h-3" /></button>
+
+                  {/* Image */}
+                  <div className="w-20 h-20 sm:w-24 sm:h-24 bg-gray-100 flex-shrink-0 relative">
+                    <Image
+                      src={item.product?.image_url || 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=200&q=80'}
+                      alt={item.product?.name || 'Product'}
+                      fill
+                      className="object-cover"
+                      sizes="96px"
+                    />
+                  </div>
+
+                  {/* Details + Controls */}
+                  <div className="flex-1 min-w-0">
+                    <Link href={`/products/${item.product_id}`} className="font-display font-bold text-sm uppercase hover:text-brand-orange transition line-clamp-2">
+                      {item.product?.name || `Product #${item.product_id}`}
+                    </Link>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs text-gray-500 uppercase">{item.product?.category}</span>
+                      {item.size && (
+                        <span className="text-[10px] font-bold bg-brand-orange/10 text-brand-orange px-2 py-0.5 rounded uppercase">
+                          Size: {item.size}
+                        </span>
+                      )}
                     </div>
-                    <button onClick={() => handleRemove(item.id)} className="text-red-500 hover:text-red-700 transition text-xs flex items-center gap-1">
-                      <Trash2 className="w-4 h-4" /> Hapus
-                    </button>
-                  </div>
-                </div>
+                    <p className="text-brand-orange font-bold text-sm mt-1">
+                      {formatRupiah(item.product?.price_24h || 0)} <span className="text-gray-500 font-normal">/hari</span>
+                    </p>
 
-                {/* Subtotal */}
-                <div className="text-right flex-shrink-0">
-                  <p className="font-bold text-sm">{formatRupiah((item.product?.price_24h || 0) * item.quantity)}</p>
+                    {/* Quantity + Remove + Subtotal */}
+                    <div className="flex items-center justify-between mt-2 flex-wrap gap-2">
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center border border-gray-300">
+                          <button
+                            onClick={() => handleQty(item.id, Math.max(1, item.quantity - 1))}
+                            className="p-1.5 hover:bg-gray-100"
+                            aria-label={`Kurangi jumlah ${item.product?.name}`}
+                          >
+                            <Minus className="w-3 h-3" />
+                          </button>
+                          <span className="px-3 text-sm font-bold" aria-label={`Jumlah: ${item.quantity}`}>{item.quantity}</span>
+                          <button
+                            onClick={() => handleQty(item.id, item.quantity + 1)}
+                            className="p-1.5 hover:bg-gray-100"
+                            aria-label={`Tambah jumlah ${item.product?.name}`}
+                          >
+                            <Plus className="w-3 h-3" />
+                          </button>
+                        </div>
+                        <button
+                          onClick={() => handleRemove(item.id)}
+                          className="text-red-500 hover:text-red-700 transition text-xs flex items-center gap-1"
+                          aria-label={`Hapus ${item.product?.name} dari keranjang`}
+                        >
+                          <Trash2 className="w-4 h-4" /> <span className="hidden sm:inline">Hapus</span>
+                        </button>
+                      </div>
+                      <p className="font-bold text-sm">{formatRupiah((item.product?.price_24h || 0) * item.quantity)}</p>
+                    </div>
+                  </div>
                 </div>
               </div>
             ))}
@@ -179,7 +199,7 @@ export default function CartPage() {
 
           {/* Summary */}
           <div className="lg:col-span-1">
-            <div className="border border-gray-200 p-6 sticky top-28">
+            <div className="border border-gray-200 p-5 sm:p-6 sticky top-28">
               <h3 className="font-display font-bold text-lg uppercase mb-6 border-b border-gray-200 pb-4">Ringkasan</h3>
               <div className="space-y-3 text-sm mb-6">
                 <div className="flex justify-between">
@@ -208,7 +228,7 @@ export default function CartPage() {
                   href={`/checkout?items=${Array.from(selectedIds).join(',')}`}
                   className="w-full bg-brand-orange text-white font-display font-bold uppercase tracking-wider py-3 hover:bg-orange-700 transition flex items-center justify-center gap-2 block text-center"
                 >
-                  Checkout ({selectedCount}) <ArrowRight className="w-4 h-4" />
+                  Checkout ({selectedCount}) <ArrowRight className="w-4 h-4" aria-hidden="true" />
                 </Link>
               )}
             </div>

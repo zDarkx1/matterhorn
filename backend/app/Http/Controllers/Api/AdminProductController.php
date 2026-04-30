@@ -14,6 +14,14 @@ use Illuminate\Support\Facades\Storage;
 class AdminProductController extends Controller
 {
     /**
+     * CDN base URL for DigitalOcean Spaces.
+     */
+    private function cdnUrl(): string
+    {
+        return rtrim(env('DO_SPACES_CDN_URL', 'https://tentcdn.sgp1.cdn.digitaloceanspaces.com'), '/');
+    }
+
+    /**
      * GET /api/admin/products
      *
      * Query params:
@@ -102,10 +110,10 @@ class AdminProductController extends Controller
         return DB::transaction(function () use ($request) {
             $data = $request->only(['name', 'category', 'gender', 'description', 'price_24h', 'stock_total', 'stock_available']);
 
-            // Handle image upload
+            // Handle image upload — upload to DigitalOcean Spaces (public ACL)
             if ($request->hasFile('image')) {
-                $path = $request->file('image')->store('products', 'public');
-                $data['image'] = 'storage/' . $path;
+                $path = $request->file('image')->storePublicly('products', 'do_spaces');
+                $data['image'] = $this->cdnUrl() . '/' . $path;
             }
 
             $product = Product::create($data);
@@ -157,15 +165,13 @@ class AdminProductController extends Controller
 
         $data = $request->only(['name', 'category', 'gender', 'description', 'price_24h', 'stock_total', 'stock_available']);
 
-        // Handle image upload
+        // Handle image upload (public ACL)
         if ($request->hasFile('image')) {
-            // Delete old image if exists
-            if ($product->image) {
-                $oldPath = str_replace('storage/', '', $product->image);
-                Storage::disk('public')->delete($oldPath);
-            }
-            $path = $request->file('image')->store('products', 'public');
-            $data['image'] = 'storage/' . $path;
+            // Delete old image from Spaces if it's a CDN URL
+            $this->deleteImageFromSpaces($product->image);
+
+            $path = $request->file('image')->storePublicly('products', 'do_spaces');
+            $data['image'] = $this->cdnUrl() . '/' . $path;
         }
 
         $product->update($data);
@@ -215,11 +221,8 @@ class AdminProductController extends Controller
             ], 422);
         }
 
-        // Delete image
-        if ($product->image) {
-            $path = str_replace('storage/', '', $product->image);
-            Storage::disk('public')->delete($path);
-        }
+        // Delete image from Spaces
+        $this->deleteImageFromSpaces($product->image);
 
         $product->delete();
 
@@ -227,5 +230,26 @@ class AdminProductController extends Controller
             'status'  => 'success',
             'message' => 'Produk berhasil dihapus.',
         ]);
+    }
+
+    /**
+     * Delete image from DigitalOcean Spaces or local storage.
+     */
+    private function deleteImageFromSpaces(?string $imageUrl): void
+    {
+        if (!$imageUrl) return;
+
+        if (str_starts_with($imageUrl, 'http')) {
+            // CDN URL — extract path relative to bucket
+            $cdnBase = $this->cdnUrl() . '/';
+            if (str_starts_with($imageUrl, $cdnBase)) {
+                $path = str_replace($cdnBase, '', $imageUrl);
+                Storage::disk('do_spaces')->delete($path);
+            }
+        } else {
+            // Legacy local storage path
+            $path = str_replace('storage/', '', $imageUrl);
+            Storage::disk('public')->delete($path);
+        }
     }
 }

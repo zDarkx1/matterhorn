@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\AdminPaymentController;
 use App\Http\Controllers\Api\AdminProductController;
 use App\Http\Controllers\Api\AdminRentalController;
 use App\Http\Controllers\Api\AdminReportController;
+use App\Http\Controllers\Api\AdminStockController;
 use App\Http\Controllers\Api\AdminUserController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CartController;
@@ -127,6 +128,13 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'admin'])->group(function ()
     Route::get('/users/{id}',     [AdminUserController::class, 'show']);
     Route::put('/users/{id}',     [AdminUserController::class, 'update']);
     Route::delete('/users/{id}',  [AdminUserController::class, 'destroy']);
+
+    // Stock Management (per-size)
+    Route::get('/products/{id}/sizes',                    [AdminStockController::class, 'index']);
+    Route::post('/products/{id}/sizes',                   [AdminStockController::class, 'store']);
+    Route::put('/products/{id}/sizes/{sizeId}/restock',   [AdminStockController::class, 'restock']);
+    Route::put('/products/{id}/sizes/{sizeId}',           [AdminStockController::class, 'update']);
+    Route::delete('/products/{id}/sizes/{sizeId}',        [AdminStockController::class, 'destroy']);
 });
 
 // ── AI Chat (public – no auth required) ─────────────────

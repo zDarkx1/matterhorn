@@ -15,6 +15,7 @@ interface AuthState {
   register: (payload: RegisterPayload) => Promise<void>;
   logout: () => Promise<void>;
   fetchMe: () => Promise<void>;
+  setAuth: (user: User, token: string) => void;
   setLoading: (loading: boolean) => void;
   hasAddress: () => boolean;
 }
@@ -68,6 +69,8 @@ export const useAuthStore = create<AuthState>()(
       },
 
       setLoading: (loading) => set({ loading }),
+
+      setAuth: (user, token) => set({ user, token, isAdmin: user.role === 'admin' }),
 
       hasAddress: () => {
         // Will be checked against addresses endpoint in profile

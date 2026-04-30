@@ -60,6 +60,20 @@ return [
             'report' => false,
         ],
 
+        'do_spaces' => [
+            'driver' => 's3',
+            'key'    => env('DO_SPACES_KEY'),
+            'secret' => env('DO_SPACES_SECRET'),
+            'region' => env('DO_SPACES_REGION', 'sgp1'),
+            'bucket' => env('DO_SPACES_BUCKET', 'tentcdn'),
+            'url'    => env('DO_SPACES_CDN_URL', 'https://tentcdn.sgp1.cdn.digitaloceanspaces.com'),
+            'endpoint' => env('DO_SPACES_ENDPOINT', 'https://sgp1.digitaloceanspaces.com'),
+            'use_path_style_endpoint' => false,
+            'visibility' => 'public',
+            'throw' => false,
+            'report' => false,
+        ],
+
     ],
 
     /*
