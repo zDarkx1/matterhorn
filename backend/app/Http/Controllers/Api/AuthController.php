@@ -128,42 +128,46 @@ class AuthController extends Controller
             $googleUser = Socialite::driver('google')->stateless()->user();
         } catch (\Exception $e) {
             \Log::error('Google OAuth failed: ' . $e->getMessage());
-            return redirect($frontendUrl . '/login?error=' . urlencode('Google login gagal: ' . $e->getMessage()));
+            return redirect($frontendUrl . '/login?error=' . urlencode('Google login gagal. Silakan coba lagi.'));
         }
 
-        // Try to find user by google_id first, then by email
-        $user = User::where('google_id', $googleUser->getId())->first();
+        try {
+            // Try to find user by google_id first, then by email
+            $user = User::where('google_id', $googleUser->getId())->first();
 
-        if (!$user) {
-            $user = User::where('email', $googleUser->getEmail())->first();
-        }
-
-        if ($user) {
-            // Existing user — link google_id if not yet linked
-            if (!$user->google_id) {
-                $user->update([
-                    'google_id' => $googleUser->getId(),
-                    'avatar'    => $googleUser->getAvatar(),
-                ]);
+            if (!$user) {
+                $user = User::where('email', $googleUser->getEmail())->first();
             }
-        } else {
-            // New user — create google-only account (no password)
-            $user = User::create([
-                'name'      => $googleUser->getName(),
-                'email'     => $googleUser->getEmail(),
-                'google_id' => $googleUser->getId(),
-                'avatar'    => $googleUser->getAvatar(),
-                'password'  => null,
-            ]);
+
+            if ($user) {
+                // Existing user — link google_id if not yet linked
+                if (!$user->google_id) {
+                    $user->update([
+                        'google_id' => $googleUser->getId(),
+                        'avatar'    => $googleUser->getAvatar(),
+                    ]);
+                }
+            } else {
+                // New user — create google-only account (no password)
+                $user = new User();
+                $user->name      = $googleUser->getName();
+                $user->email     = $googleUser->getEmail();
+                $user->google_id = $googleUser->getId();
+                $user->avatar    = $googleUser->getAvatar();
+                $user->save();
+            }
+
+            // Generate Sanctum token
+            $token = $user->createToken('google-auth')->plainTextToken;
+
+            // Redirect to frontend with token and user data
+            $userData = urlencode(json_encode(new UserResource($user)));
+
+            return redirect($frontendUrl . '/auth/google/callback?token=' . $token . '&user=' . $userData);
+        } catch (\Exception $e) {
+            \Log::error('Google OAuth user creation/login failed: ' . $e->getMessage());
+            return redirect($frontendUrl . '/login?error=' . urlencode('Gagal memproses akun Google. Silakan coba lagi atau daftar terlebih dahulu.'));
         }
-
-        // Generate Sanctum token
-        $token = $user->createToken('google-auth')->plainTextToken;
-
-        // Redirect to frontend with token and user data
-        $userData = urlencode(json_encode(new UserResource($user)));
-
-        return redirect($frontendUrl . '/auth/google/callback?token=' . $token . '&user=' . $userData);
     }
 
     /**

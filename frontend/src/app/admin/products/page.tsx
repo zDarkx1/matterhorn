@@ -335,14 +335,14 @@ export default function AdminProductsPage() {
         <DialogContent size="lg">
           <DialogHeader title={editing ? 'Edit Produk' : 'Tambah Produk Baru'} />
           <DialogBody>
-            <form id="product-form" onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Nama Produk</label>
+            <form id="product-form" onSubmit={handleSubmit} className="space-y-5">
+              <div>
+                <label className="block text-sm font-medium mb-1.5">Nama Produk</label>
                 <Input name="name" defaultValue={editing?.name || ''} required />
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Kategori</label>
+                <div>
+                  <label className="block text-sm font-medium mb-1.5">Kategori</label>
                   {showNewCategory ? (
                     <div className="flex gap-2">
                       <Input name="category" placeholder="Nama kategori baru" required className="flex-1" />
@@ -363,7 +363,7 @@ export default function AdminProductsPage() {
                             setSelectedCategory(e.target.value);
                           }
                         }}
-                        className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                        className="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm shadow-xs/5 outline-none focus-visible:border-primary focus-visible:ring-[3px] focus-visible:ring-ring/32 transition-[color,box-shadow]"
                         required
                       >
                         <option value="">Pilih kategori...</option>
@@ -375,9 +375,9 @@ export default function AdminProductsPage() {
                     </div>
                   )}
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Gender</label>
-                  <select name="gender" defaultValue={editing?.gender || 'unisex'} className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm">
+                <div>
+                  <label className="block text-sm font-medium mb-1.5">Gender</label>
+                  <select name="gender" defaultValue={editing?.gender || 'unisex'} className="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm shadow-xs/5 outline-none focus-visible:border-primary focus-visible:ring-[3px] focus-visible:ring-ring/32 transition-[color,box-shadow]">
                     <option value="unisex">Unisex</option>
                     <option value="pria">Pria</option>
                     <option value="wanita">Wanita</option>
@@ -385,26 +385,26 @@ export default function AdminProductsPage() {
                   </select>
                 </div>
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Deskripsi</label>
-                <textarea name="description" defaultValue={editing?.description || ''} rows={3} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+              <div>
+                <label className="block text-sm font-medium mb-1.5">Deskripsi</label>
+                <textarea name="description" defaultValue={editing?.description || ''} rows={3} className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm shadow-xs/5 outline-none focus-visible:border-primary focus-visible:ring-[3px] focus-visible:ring-ring/32 transition-[color,box-shadow]" />
               </div>
               <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Harga/24h</label>
+                <div>
+                  <label className="block text-sm font-medium mb-1.5">Harga/24h</label>
                   <Input name="price_24h" type="number" min="0" defaultValue={editing?.price_24h || ''} required />
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Stok Total</label>
+                <div>
+                  <label className="block text-sm font-medium mb-1.5">Stok Total</label>
                   <Input name="stock_total" type="number" min="0" defaultValue={editing?.stock_total || ''} required />
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Stok Tersedia</label>
+                <div>
+                  <label className="block text-sm font-medium mb-1.5">Stok Tersedia</label>
                   <Input name="stock_available" type="number" min="0" defaultValue={editing?.stock_available || ''} required />
                 </div>
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Gambar Produk</label>
+              <div>
+                <label className="block text-sm font-medium mb-1.5">Gambar Produk</label>
                 <Input name="image" type="file" accept="image/*" />
                 {editing?.image_url && (
                   <div className="mt-2">
@@ -414,44 +414,48 @@ export default function AdminProductsPage() {
               </div>
 
               {/* Dynamic Sizes */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-2">
                   <label className="text-sm font-medium">Ukuran (Sizes)</label>
                   <Button type="button" variant="outline" size="sm" onClick={() => setFormSizes((p) => [...p, { size: '', stock: 0 }])}>
                     <Plus className="h-3 w-3 mr-1" /> Tambah Size
                   </Button>
                 </div>
-                {formSizes.map((s, i) => (
-                  <div key={i} className="flex gap-2 items-center">
-                    <Input
-                      data-size-name=""
-                      placeholder="Contoh: M, L, XL"
-                      value={s.size}
-                      onChange={(e) => {
-                        const copy = [...formSizes];
-                        copy[i] = { ...copy[i], size: e.target.value };
-                        setFormSizes(copy);
-                      }}
-                      className="flex-1"
-                    />
-                    <Input
-                      data-size-stock=""
-                      type="number"
-                      min="0"
-                      placeholder="Stok"
-                      value={s.stock}
-                      onChange={(e) => {
-                        const copy = [...formSizes];
-                        copy[i] = { ...copy[i], stock: parseInt(e.target.value) || 0 };
-                        setFormSizes(copy);
-                      }}
-                      className="w-24"
-                    />
-                    <Button type="button" variant="ghost" size="sm" onClick={() => setFormSizes((p) => p.filter((_, j) => j !== i))}>
-                      <X className="h-3 w-3" />
-                    </Button>
+                {formSizes.length > 0 && (
+                  <div className="space-y-2">
+                    {formSizes.map((s, i) => (
+                      <div key={i} className="flex gap-2 items-center">
+                        <Input
+                          data-size-name=""
+                          placeholder="Contoh: M, L, XL"
+                          value={s.size}
+                          onChange={(e) => {
+                            const copy = [...formSizes];
+                            copy[i] = { ...copy[i], size: e.target.value };
+                            setFormSizes(copy);
+                          }}
+                          className="flex-1"
+                        />
+                        <Input
+                          data-size-stock=""
+                          type="number"
+                          min="0"
+                          placeholder="Stok"
+                          value={s.stock}
+                          onChange={(e) => {
+                            const copy = [...formSizes];
+                            copy[i] = { ...copy[i], stock: parseInt(e.target.value) || 0 };
+                            setFormSizes(copy);
+                          }}
+                          className="w-24"
+                        />
+                        <Button type="button" variant="ghost" size="sm" onClick={() => setFormSizes((p) => p.filter((_, j) => j !== i))}>
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
             </form>
           </DialogBody>
@@ -505,8 +509,8 @@ export default function AdminProductsPage() {
                 )}
 
                 {/* Add new size */}
-                <div className="border-t pt-4 space-y-2">
-                  <label className="text-sm font-medium">Tambah Size Baru</label>
+                <div className="border-t pt-4">
+                  <label className="block text-sm font-medium mb-2">Tambah Size Baru</label>
                   <div className="flex gap-2">
                     <Input
                       placeholder="Nama size (M, L, XL...)"

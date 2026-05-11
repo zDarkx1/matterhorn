@@ -212,29 +212,29 @@ export default function AdminUsersPage() {
         <DialogContent size="md">
           <DialogHeader title={editing ? 'Edit User' : 'Tambah User Baru'} />
           <DialogBody>
-            <form id="user-form" onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Nama</label>
+            <form id="user-form" onSubmit={handleSubmit} className="space-y-5">
+              <div>
+                <label className="block text-sm font-medium mb-1.5">Nama</label>
                 <Input name="name" defaultValue={editing?.name || ''} required />
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Email</label>
+              <div>
+                <label className="block text-sm font-medium mb-1.5">Email</label>
                 <Input name="email" type="email" defaultValue={editing?.email || ''} required />
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Password {editing && <span className="text-muted-foreground">(kosongkan jika tidak diubah)</span>}</label>
+              <div>
+                <label className="block text-sm font-medium mb-1.5">Password {editing && <span className="text-muted-foreground">(kosongkan jika tidak diubah)</span>}</label>
                 <Input name="password" type="password" required={!editing} />
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Role</label>
-                  <select name="role" defaultValue={editing?.role || 'customer'} className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm">
+                <div>
+                  <label className="block text-sm font-medium mb-1.5">Role</label>
+                  <select name="role" defaultValue={editing?.role || 'customer'} className="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm shadow-xs/5 outline-none focus-visible:border-primary focus-visible:ring-[3px] focus-visible:ring-ring/32 transition-[color,box-shadow]">
                     <option value="customer">Customer</option>
                     <option value="admin">Admin</option>
                   </select>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Telepon</label>
+                <div>
+                  <label className="block text-sm font-medium mb-1.5">Telepon</label>
                   <Input name="phone_number" defaultValue={editing?.phone_number || ''} />
                 </div>
               </div>

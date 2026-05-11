@@ -77,16 +77,31 @@ function ProductsCatalog() {
         {/* Category Filter */}
         <div className="border-b border-gray-100 pb-6 mb-6">
           <span className="font-bold text-sm uppercase mb-3 block">Kategori</span>
-          <div className="space-y-2 pl-2">
-            <label className="flex items-center space-x-3 cursor-pointer group">
-              <input type="radio" name="category" checked={!selectedCategory} onChange={() => { setSelectedCategory(''); setPage(1); }} className="text-brand-orange focus:ring-brand-orange" />
-              <span className="text-sm text-gray-600 group-hover:text-brand-orange transition">Semua</span>
-            </label>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => { setSelectedCategory(''); setPage(1); }}
+              className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wide border rounded transition-all duration-200 ${
+                !selectedCategory
+                  ? 'bg-brand-orange text-white border-brand-orange shadow-sm'
+                  : 'bg-white text-gray-600 border-gray-200 hover:border-brand-orange hover:text-brand-orange'
+              }`}
+            >
+              Semua
+            </button>
             {categories.map((cat) => (
-              <label key={cat} className="flex items-center space-x-3 cursor-pointer group">
-                <input type="radio" name="category" checked={selectedCategory === cat} onChange={() => { setSelectedCategory(cat); setPage(1); }} className="text-brand-orange focus:ring-brand-orange" />
-                <span className="text-sm text-gray-600 group-hover:text-brand-orange transition">{cat}</span>
-              </label>
+              <button
+                key={cat}
+                type="button"
+                onClick={() => { setSelectedCategory(cat); setPage(1); }}
+                className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wide border rounded transition-all duration-200 ${
+                  selectedCategory === cat
+                    ? 'bg-brand-orange text-white border-brand-orange shadow-sm'
+                    : 'bg-white text-gray-600 border-gray-200 hover:border-brand-orange hover:text-brand-orange'
+                }`}
+              >
+                {cat}
+              </button>
             ))}
           </div>
         </div>
